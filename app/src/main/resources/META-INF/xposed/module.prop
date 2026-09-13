@@ -1,0 +1,5 @@
+minApiVersion=101
+targetApiVersion=102
+staticScope=true
+autoHotReload=false
+description=HyperLock: 澎湃锁屏与息屏定制 LSPosed 模块。

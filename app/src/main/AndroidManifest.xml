@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
+    <!-- 仅用于保护 HyperLock 自己发出的"设置已变更"广播：接收方动态注册在 SystemUI 进程，
+         跨应用接收必须导出，因此用 signature 级权限把发送方限制为同签名应用。 -->
+    <permission
+        android:name="io.github.windsnn.hyperlock.permission.RELOAD_SETTINGS"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="io.github.windsnn.hyperlock.permission.RELOAD_SETTINGS" />
+    <application
+        android:name=".HookApplication"
+        android:allowBackup="false"
+        android:enableOnBackInvokedCallback="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.HyperSystemUIHook">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -1,0 +1,98 @@
+# Gradle files
+.gradle/
+.gradle-home/
+.kotlin/
+**/build/
+
+# Local configuration
+local.properties
+
+# IDE files
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Python caches (tools/ 下的校验脚本)
+__pycache__/
+*.pyc
+
+# Build outputs and profiling data
+*.apk
+*.aab
+*.hprof
+output-metadata.json
+
+# Keystores and service configuration
+*.jks
+*.keystore
+*-base64.txt
+google-services.json
+
+# Logs and OS files
+*.log
+hs_err_pid*.log
+.DS_Store
+Thumbs.db
+
+# Local APK inspection and reverse-engineering workspaces
+.api-inspect/
+.jadx*/
+.miuix-inspect/
+.plugin-jadx/
+.target-analysis/
+analysis/
+hyperos4-glass-blur-main/
+/.jadx.zip
+
+# Temporary reverse-engineering and device-test files
+/.tmp-*
+/device-*.txt
+/apk-output-final/
+/custom-my-device/
+/RELEASE_NOTES*.md
+
+# Device captures and extracted system packages kept only for local analysis
+systemui/*.jar
+/*.png
+/*.jpg
+/*.jpeg
+/*.xml
+/*.apk
+/*.aar
+/*.resources.txt
+/*.svg
+/*.png
+
+# Local reverse-engineering projects, dumps, and generated output
+/apk-output/
+/apk-output-final/
+/HyperBackground/
+/HyperCeiler-main/
+/REAREye-dev/
+/XiaomiHelper-master/
+/PowerShell 7.6.4/
+/null/
+/work/
+/设置美化设计-教程等/
+/机型图片-新增/
+/.anr-latest.txt
+/*.dex
+/*.db
+/*.tmp
+/.codex-window.xml
+
+# AI instructions, context, agent rules, and prompt files (do not commit to Git)
+AGENTS.md
+agents.md
+*.agent.md
+.gemini/
+.claude/
+.cursor/
+.cursorrules
+.cursorrules/
+.agent/
+ai/
+prompt*.md
+
