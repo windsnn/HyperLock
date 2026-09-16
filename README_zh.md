@@ -1,4 +1,4 @@
-﻿<p align="center">
+<p align="center">
   <img src="app/src/main/res/drawable/ic_hyperlock_full.webp" alt="HyperLock 图标" width="128">
 </p>
 
@@ -42,7 +42,7 @@
 
 ## 构建
 
-预编译包见 [Releases](https://github.com/windsnn/HyperLock/releases)。自己编：`./gradlew assembleRelease`（JDK 17 + Android SDK 37 起）。仓库里的 `Build APK` 工作流可以手动触发，推 `v*` tag 会自动出包并发 Release。
+预编译包见 [Releases](https://github.com/windsnn/HyperLock/releases)。自己编：`./gradlew assembleRelease`（JDK 17 + Android SDK 37 起）。仓库里的 `HyperLock CI` 工作流可以手动触发，推 `v*` tag 会自动触发 `HyperLock Release` 出包并发 Release。
 
 ## 免责声明
 

@@ -1,15 +1,17 @@
-name: Build APK
+﻿name: HyperLock CI
 
 on:
   push:
-    tags: [ 'v*' ]
+    branches: [ 'main' ]
+  pull_request:
+    branches: [ 'main' ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -24,6 +26,8 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          packages: ''
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
@@ -41,7 +45,7 @@ jobs:
             echo "RELEASE_STORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
             echo "已从 RELEASE_KEYSTORE_BASE64 还原签名证书。"
           else
-            echo "::warning::未配置 RELEASE_KEYSTORE_BASE64，release 构建将使用调试签名。"
+            echo "::warning::未配置 RELEASE_KEYSTORE_BASE64，构建将使用调试签名。"
           fi
 
       - name: Build with Gradle
@@ -49,31 +53,16 @@ jobs:
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-          HYPERLOCK_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: ./gradlew assembleRelease --stacktrace
+
+      - name: Prepare APK Artifact
+        run: |
+          mkdir -p ci-assets
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          cp app/build/outputs/apk/release/*.apk "ci-assets/HyperLock-CI-${SHORT_SHA}.apk"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v7
         with:
-          name: HyperLock-release-apk
-          path: app/build/outputs/apk/release/*.apk
-
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          prerelease=""
-          case "$GITHUB_REF_NAME" in
-            *Beta*|*beta*|*RC*|*rc*) prerelease="--prerelease" ;;
-          esac
-          gh release create "$GITHUB_REF_NAME" \
-            app/build/outputs/apk/release/*.apk \
-            LICENSE NOTICE THIRD-PARTY.md \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes \
-            $prerelease \
-          || gh release upload "$GITHUB_REF_NAME" \
-            app/build/outputs/apk/release/*.apk \
-            LICENSE NOTICE THIRD-PARTY.md \
-            --clobber
+          name: HyperLock-CI-apk
+          path: ci-assets/*.apk

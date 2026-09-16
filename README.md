@@ -1,4 +1,4 @@
-﻿<p align="center">
+<p align="center">
   <img src="app/src/main/res/drawable/ic_hyperlock_full.webp" alt="HyperLock icon" width="128">
 </p>
 
@@ -42,7 +42,7 @@ Lyrics are not provided by this module. To get lock screen lyrics, install [Lyri
 
 ## Build
 
-Prebuilt APKs are on the [Releases](https://github.com/windsnn/HyperLock/releases) page. To build it yourself: `./gradlew assembleRelease` (JDK 17 and Android SDK 37+). The `Build APK` workflow can be triggered manually, and pushing a `v*` tag builds and publishes a release automatically.
+Prebuilt APKs are on the [Releases](https://github.com/windsnn/HyperLock/releases) page. To build it yourself: `./gradlew assembleRelease` (JDK 17 and Android SDK 37+). The `HyperLock CI` workflow can be triggered manually, and pushing a `v*` tag triggers `HyperLock Release` to build and publish a release automatically.
 
 ## Disclaimer
 
