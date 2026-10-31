@@ -9,6 +9,7 @@ import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.preference.*
 import top.yukonga.miuix.kmp.theme.*
 import io.github.windsnn.hyperlock.HookSettings
+import io.github.windsnn.hyperlock.ScopeApplication
 import io.github.windsnn.hyperlock.resetLockscreenDefaults
 import io.github.windsnn.hyperlock.settings.LOCKSCREEN_TEXT_CHARGING
 import io.github.windsnn.hyperlock.settings.LOCKSCREEN_TEXT_DND
@@ -18,16 +19,17 @@ import kotlin.math.roundToInt
 @Composable
 internal fun Lock(
     s: HookSettings,
+    activeScopes: Set<ScopeApplication>,
     update: ((HookSettings) -> HookSettings) -> Unit,
 ) {
     val context = LocalContext.current
     var showRestoreDefaultsDialog by remember { mutableStateOf(false) }
     var showBottomTextDialog by remember { mutableStateOf(false) }
 
-    AppPage("锁屏", onRestoreDefaults = { showRestoreDefaultsDialog = true }) { p, scroll ->
+    AppPage("锁屏", onRestoreDefaults = if (activeScopes.isNotEmpty()) { { showRestoreDefaultsDialog = true } } else null) { p, scroll ->
         AppList(p, scroll, 88) {
             item {
-                Group("景深与时钟") {
+                ScopeGroup("景深与时钟", ScopeApplication.AOD, activeScopes) {
                     SwitchPreference(
                         title = "去除景深限制",
                         checked = s.removeDepthImageLimit,
@@ -41,7 +43,7 @@ internal fun Lock(
                 }
             }
             item {
-                Group("通知下沉与指纹") {
+                ScopeGroup("通知下沉与指纹", ScopeApplication.SYSTEM_UI, activeScopes) {
                     SwitchPreference(
                         title = "去除通知下沉位置限制",
                         checked = s.notificationFodPositionLimitRemoved,
@@ -60,7 +62,7 @@ internal fun Lock(
                 }
             }
             item {
-                Group("锁屏底部文本") {
+                ScopeGroup("锁屏底部文本", ScopeApplication.SYSTEM_UI, activeScopes) {
                     ArrowPreference(
                         title = "隐藏锁屏底部文本",
                         summary = lockscreenBottomTextSummary(s.lockscreenBottomTextMask),
@@ -69,7 +71,7 @@ internal fun Lock(
                 }
             }
             item {
-                Group("锁屏输入密码界面") {
+                ScopeGroup("锁屏输入密码界面", ScopeApplication.SYSTEM_UI, activeScopes) {
                     SwitchPreference(
                         title = "数字圆形背景",
                         checked = s.lockscreenPinCircleBackgroundEnabled,
@@ -90,7 +92,7 @@ internal fun Lock(
                 }
             }
             item {
-                Group("迷你音乐播放器") {
+                ScopeGroup("迷你音乐播放器", ScopeApplication.SYSTEM_UI, activeScopes) {
                     SwitchPreference(
                         title = "锁屏迷你音乐播放器",
                         summary = "显示在底部快捷按钮之间，跟随当前媒体会话",
@@ -231,7 +233,7 @@ internal fun Lock(
                 }
             }
             item {
-                Group("快捷功能背景") {
+                ScopeGroup("快捷功能背景", ScopeApplication.SYSTEM_UI, activeScopes) {
                     OverlayDropdownPreference(
                         title = "锁屏快捷功能背景",
                         items = listOf("不显示", "纯色", "高级材质", "柔光玻璃"),

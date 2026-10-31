@@ -3,11 +3,13 @@ package io.github.windsnn.hyperlock.ui
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
@@ -15,7 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -47,6 +52,7 @@ import com.kyant.backdrop.drawPlainBackdrop
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import io.github.windsnn.hyperlock.DeviceCompat
+import io.github.windsnn.hyperlock.ScopeApplication
 
 @Composable
 internal fun AppPage(
@@ -296,6 +302,66 @@ internal fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth()) {
         SmallTitle(title, insideMargin = PaddingValues(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 4.dp))
         Card(Modifier.fillMaxWidth()) { content() }
+    }
+}
+
+@Composable
+internal fun ScopeGroup(
+    title: String,
+    scope: ScopeApplication,
+    activeScopes: Set<ScopeApplication>,
+    content: @Composable ColumnScope.() -> Unit,
+) = ScopeGroup(title, setOf(scope), activeScopes, content)
+
+@Composable
+internal fun ScopeGroup(
+    title: String,
+    requiredScopes: Set<ScopeApplication>,
+    activeScopes: Set<ScopeApplication>,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val missingScopes = requiredScopes - activeScopes
+    val isEnabled = missingScopes.isEmpty()
+    val context = LocalContext.current
+    val displayTitle = if (isEnabled) {
+        title
+    } else {
+        val missingNames = missingScopes.joinToString("、") { it.title }
+        "$title (未勾选${missingNames}作用域)"
+    }
+
+    Column(Modifier.fillMaxWidth()) {
+        SmallTitle(displayTitle, insideMargin = PaddingValues(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 4.dp))
+        Box(Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier.fillMaxWidth().graphicsLayer {
+                    if (!isEnabled) alpha = 0.45f
+                },
+            ) {
+                content()
+            }
+            if (!isEnabled) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .pointerInput(missingScopes) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    event.changes.forEach { it.consume() }
+                                }
+                            }
+                        }
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) {
+                            val names = missingScopes.joinToString("、") { "「${it.title}」" }
+                            Toast.makeText(context, "未在 LSPosed 中勾选 $names 作用域，无法配置", Toast.LENGTH_SHORT).show()
+                        },
+                )
+            }
+        }
     }
 }
 

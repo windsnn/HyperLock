@@ -42,6 +42,7 @@ import com.kyant.backdrop.drawPlainBackdrop
 import top.yukonga.miuix.kmp.icon.extended.All
 import io.github.windsnn.hyperlock.HookSettings
 import io.github.windsnn.hyperlock.HookSettingsStore
+import io.github.windsnn.hyperlock.ScopeApplication
 
 internal enum class Tab(val title: String) {
     LOCK("锁屏"),
@@ -117,11 +118,15 @@ internal fun Shell(
     }
     BackHandler(enabled = page != null, onBack = dismissPage)
     val backdrop = rememberLayerBackdrop()
+    val activeScopes = remember(service) {
+        val boundScopes = service?.runCatching { scope }?.getOrNull().orEmpty()
+        ScopeApplication.entries.filter { it.packageName in boundScopes }.toSet()
+    }
 
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
             when (tab) {
-                Tab.LOCK -> Lock(settings, update)
+                Tab.LOCK -> Lock(settings, activeScopes, update)
                 Tab.SETTINGS -> SettingsHome(
                     settings = settings,
                     online = service != null,
