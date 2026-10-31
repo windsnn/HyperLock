@@ -60,6 +60,25 @@ internal fun HyperSystemUiModule.installDepthThresholdHooks(
             result
         }
     forceDepthImageThreshold(evaluatorClass, thresholdClass, preferences)
+
+    runCatching {
+        @Suppress("UNCHECKED_CAST")
+        val avoidReasonClass = classLoader.loadClass("com.miui.clock.utils.avoid.DepthAvoidEvaluator\$AvoidReason")
+            as Class<out Enum<*>>
+        val okReason = java.lang.Enum.valueOf(avoidReasonClass, "OK")
+        evaluatorClass.declaredMethods.filter { it.name == "evaluate" }.forEachIndexed { idx, method ->
+            attachHook(method)
+                .setExceptionMode(ExceptionMode.PROTECTIVE)
+                .setId("$idStem-evaluate-$idx")
+                .intercept { chain ->
+                    if (preferences.getBoolean(KEY_REMOVE_DEPTH_IMAGE_LIMIT, false)) {
+                        okReason
+                    } else {
+                        chain.proceed()
+                    }
+                }
+        }
+    }
 }
 
 internal fun HyperSystemUiModule.installDepthAvoidanceBypass(classLoader: ClassLoader, preferences: SharedPreferences) {
@@ -84,9 +103,7 @@ internal fun HyperSystemUiModule.installDepthAvoidanceBypass(classLoader: ClassL
         .setExceptionMode(ExceptionMode.PROTECTIVE)
         .setId("depth-time-overlap-state")
         .intercept { chain ->
-            if (preferences.getBoolean(KEY_REMOVE_DEPTH_IMAGE_LIMIT, false) &&
-                isUserHierarchyEnabled(chain.thisObject, controllerClass)
-            ) {
+            if (preferences.getBoolean(KEY_REMOVE_DEPTH_IMAGE_LIMIT, false)) {
                 chain.proceedWith(chain.thisObject, arrayOf(true, chain.getArg(1)))
             } else {
                 chain.proceed()
@@ -110,17 +127,25 @@ internal fun HyperSystemUiModule.installSystemUiDepthHooks(classLoader: ClassLoa
         )
 
         val interactorClass = classLoader.loadClass(KEYGUARD_DEPTH_INTERACTOR_CLASS)
-        attachHook(interactorClass.getMethod("updateAvoidStatus"))
-            .setExceptionMode(ExceptionMode.PROTECTIVE)
-            .setId("systemui-depth-time-overlap")
-            .intercept { chain ->
-                if (preferences.getBoolean(KEY_REMOVE_DEPTH_IMAGE_LIMIT, false)) {
-                    clearDepthAvoidState(chain.thisObject, interactorClass)
-                    null
-                } else {
-                    chain.proceed()
+        val avoidMethods = interactorClass.declaredMethods.filter { it.name == "updateAvoidStatus" }
+        for ((idx, method) in avoidMethods.withIndex()) {
+            attachHook(method)
+                .setExceptionMode(ExceptionMode.PROTECTIVE)
+                .setId("systemui-depth-time-overlap-$idx")
+                .intercept { chain ->
+                    if (preferences.getBoolean(KEY_REMOVE_DEPTH_IMAGE_LIMIT, false)) {
+                        if (chain.args.isNotEmpty() && chain.getArg(0) is Boolean) {
+                            chain.proceedWith(chain.thisObject, arrayOf(false))
+                        } else {
+                            chain.proceed()
+                        }
+                        clearDepthAvoidState(chain.thisObject, interactorClass)
+                        null
+                    } else {
+                        chain.proceed()
+                    }
                 }
-            }
+        }
         val alphaMethod = interactorClass.declaredMethods.firstOrNull {
             it.name == "setDepthTransitionAlpha" && it.parameterCount == 3
         } ?: error("setDepthTransitionAlpha not found")
@@ -158,42 +183,63 @@ internal fun HyperSystemUiModule.forceDepthImageThreshold(
 
 internal fun HyperSystemUiModule.installDepthDisplayStateHook(classLoader: ClassLoader, preferences: SharedPreferences) {
     val panelClass = classLoader.loadClass(KEYGUARD_PANEL_VIEW_CONTROLLER_CLASS)
-    val depthEnabled = panelClass.getDeclaredField("depthEffectEnable").apply { isAccessible = true }
-    val interactor = panelClass.getDeclaredField("keyguardDepthInteractor").apply { isAccessible = true }
-    val actualDisplayDepth = interactor.type.getDeclaredField("isActualDisplayDepth")
-        .apply { isAccessible = true }
-    val depthEnabledInner = interactor.type.getDeclaredField("depthEffectEnableInner")
-        .apply { isAccessible = true }
-    val updateElements = panelClass.getMethod("updateKeyguardElementsVisibility")
-    attachHook(panelClass.getMethod("updateShowDepthState"))
-        .setExceptionMode(ExceptionMode.PROTECTIVE)
-        .setId("systemui-depth-display-state")
-        .intercept { chain ->
-            if (preferences.getBoolean(KEY_REMOVE_DEPTH_IMAGE_LIMIT, false)) {
-                depthEnabled.setBoolean(chain.thisObject, true)
-                depthEnabledInner.setBoolean(interactor.get(chain.thisObject), true)
-            }
-            val result = chain.proceed()
-            if (preferences.getBoolean(KEY_REMOVE_DEPTH_IMAGE_LIMIT, false)) {
-                val depthInteractor = interactor.get(chain.thisObject)
-                if (!actualDisplayDepth.getBoolean(depthInteractor)) {
-                    actualDisplayDepth.setBoolean(depthInteractor, true)
-                    updateElements.invoke(chain.thisObject)
+    val depthEnabled = runCatching { panelClass.getDeclaredField("depthEffectEnable").apply { isAccessible = true } }.getOrNull()
+    val largeScreenHierarchyEnableField = runCatching {
+        panelClass.getDeclaredField("largeScreenHierarchyEnable").apply { isAccessible = true }
+    }.getOrNull()
+    val interactorField = runCatching { panelClass.getDeclaredField("keyguardDepthInteractor").apply { isAccessible = true } }.getOrNull()
+    val interactorType = interactorField?.type
+    val actualDisplayDepth = runCatching {
+        interactorType?.getDeclaredField("isActualDisplayDepth")?.apply { isAccessible = true }
+    }.getOrNull()
+    val depthEnabledInner = runCatching {
+        interactorType?.getDeclaredField("depthEffectEnableInner")?.apply { isAccessible = true }
+    }.getOrNull()
+    val updateElements = runCatching { panelClass.getMethod("updateKeyguardElementsVisibility") }.getOrNull()
+
+    panelClass.declaredMethods.firstOrNull { it.name == "updateShowDepthState" }?.let { method ->
+        attachHook(method)
+            .setExceptionMode(ExceptionMode.PROTECTIVE)
+            .setId("systemui-depth-display-state")
+            .intercept { chain ->
+                if (preferences.getBoolean(KEY_REMOVE_DEPTH_IMAGE_LIMIT, false)) {
+                    depthEnabled?.setBoolean(chain.thisObject, true)
+                    largeScreenHierarchyEnableField?.setBoolean(chain.thisObject, true)
+                    interactorField?.get(chain.thisObject)?.let { interactor ->
+                        depthEnabledInner?.setBoolean(interactor, true)
+                    }
                 }
+                val result = chain.proceed()
+                if (preferences.getBoolean(KEY_REMOVE_DEPTH_IMAGE_LIMIT, false)) {
+                    interactorField?.get(chain.thisObject)?.let { depthInteractor ->
+                        depthEnabledInner?.setBoolean(depthInteractor, true)
+                        if (actualDisplayDepth?.getBoolean(depthInteractor) == false) {
+                            actualDisplayDepth.setBoolean(depthInteractor, true)
+                            updateElements?.invoke(chain.thisObject)
+                        }
+                    }
+                }
+                result
             }
-            result
-        }
+    }
 }
 
 internal fun HyperSystemUiModule.clearDepthAvoidState(instance: Any?, interactorClass: Class<*>) {
     runCatching {
         val state = interactorClass.getDeclaredField("_avoidState")
             .apply { isAccessible = true }
-            .get(instance)
-        val update = state.javaClass.methods.firstOrNull {
-            it.name == "updateState\$1" && it.parameterCount == 2
-        } ?: error("StateFlow update method not found")
-        update.invoke(state, null, false)
+            .get(instance) ?: return
+        val setValueMethod = state.javaClass.methods.firstOrNull {
+            it.name == "setValue" && it.parameterCount == 1
+        }
+        if (setValueMethod != null) {
+            setValueMethod.invoke(state, false)
+        } else {
+            val update = state.javaClass.methods.firstOrNull {
+                it.name.startsWith("updateState") && it.parameterCount == 2
+            }
+            update?.invoke(state, null, false)
+        }
     }.onFailure { error ->
         hookLog(Log.ERROR, TAG, "Could not clear lockscreen depth avoid state", error)
     }
@@ -258,14 +304,22 @@ internal fun HyperSystemUiModule.installWallpaperCapabilityHooks(
     wallpaperInfoClass: () -> Class<*>,
     hierarchyClass: () -> Class<*>,
 ) {
-    attachHook(wallpaperInfoClass().getMethod("getSupportSubject"))
+    val clazz = wallpaperInfoClass()
+    attachHook(clazz.getMethod("getSupportSubject"))
         .setExceptionMode(ExceptionMode.PROTECTIVE)
         .setId("$idPrefix-depth-wallpaper-subject")
         .intercept { chain -> true }
 
+    clazz.declaredMethods.firstOrNull { it.name == "isThirdPartyWallpaper" && it.parameterCount == 0 }?.let { method ->
+        attachHook(method)
+            .setExceptionMode(ExceptionMode.PROTECTIVE)
+            .setId("$idPrefix-depth-wallpaper-not-third-party")
+            .intercept { chain -> false }
+    }
+
     val forcedHierarchy = createForcedLargeScreenHierarchy(hierarchyClass())
     if (forcedHierarchy != null) {
-        attachHook(wallpaperInfoClass().getMethod("getLargeScreenHierarchyEnable"))
+        attachHook(clazz.getMethod("getLargeScreenHierarchyEnable"))
             .setExceptionMode(ExceptionMode.PROTECTIVE)
             .setId("$idPrefix-depth-wallpaper-hierarchy")
             .intercept { chain -> forcedHierarchy }

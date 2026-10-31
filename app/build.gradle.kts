@@ -43,10 +43,10 @@ val releaseTag = providers.gradleProperty("versionTag").orNull?.takeIf { it.isNo
 val tagVersion = releaseTag?.removePrefix("v")
     ?.let { Regex("""^(\d+)\.(\d+)\.(\d+)""").find(it) }
 val versionParts = tagVersion?.let { listOf(it.groupValues[1], it.groupValues[2], it.groupValues[3]) }
-val appVersionName = versionParts?.joinToString(".") ?: "1.0.1"
+val appVersionName = versionParts?.joinToString(".") ?: "1.1.1"
 val appVersionCode = versionParts?.let { (major, minor, patch) ->
     major.toInt() * 10000 + minor.toInt() * 100 + patch.toInt()
-} ?: 10001
+} ?: 10101
 
 logger.lifecycle("HyperLock: versionName=$appVersionName, versionCode=$appVersionCode, tag=${releaseTag ?: "无"}")
 

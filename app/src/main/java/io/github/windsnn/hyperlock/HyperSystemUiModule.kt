@@ -79,6 +79,7 @@ class HyperSystemUiModule : XposedModule() {
                         installClockMaterialLimitHook(classLoader, preferences)
                         aodClockMaterialLimitHookInstalled = true
                     }
+                    installClockMaterialHierarchyCompatHooks(classLoader, preferences)
                 }
             }
             log(Log.INFO, TAG, "Installed hooks for ${param.packageName}")

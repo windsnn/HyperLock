@@ -54,9 +54,10 @@ hyperos4-glass-blur-main/
 /RELEASE_NOTES*.md
 
 # Device captures and extracted system packages kept only for local analysis
+/systemui/
+/aod/
 systemui/*.jar
 /systemui/decompiled/
-/aod/decompiled/
 /*.png
 /*.jpg
 /*.jpeg

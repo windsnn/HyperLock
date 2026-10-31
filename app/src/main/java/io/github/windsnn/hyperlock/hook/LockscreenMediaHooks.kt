@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.Icon
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
@@ -154,21 +155,29 @@ private fun extractNotificationArtwork(manager: Any?, key: String?): Bitmap? {
         val sbn = readInstanceField(entry, "mSbn") as? android.service.notification.StatusBarNotification
             ?: return null
         val notification = sbn.notification ?: return null
-        val icon = notification.largeIcon ?: return null
         val context = (readInstanceField(manager, "mContext") as? Context)
             ?: (readInstanceField(entry, "mContext") as? Context)
             ?: return null
-        val drawable = icon.loadDrawable(context) ?: return null
-        if (drawable is BitmapDrawable && drawable.bitmap != null) {
-            return drawable.bitmap
+        val largeIcon = notification.getLargeIcon()
+        if (largeIcon != null) {
+            val drawable = largeIcon.loadDrawable(context)
+            if (drawable is BitmapDrawable && drawable.bitmap != null) {
+                return drawable.bitmap
+            }
+            if (drawable != null) {
+                val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth.coerceAtMost(256) else 128
+                val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight.coerceAtMost(256) else 128
+                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bitmap)
+                drawable.setBounds(0, 0, canvas.width, canvas.height)
+                drawable.draw(canvas)
+                return bitmap
+            }
         }
-        val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth.coerceAtMost(256) else 128
-        val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight.coerceAtMost(256) else 128
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        drawable.setBounds(0, 0, canvas.width, canvas.height)
-        drawable.draw(canvas)
-        bitmap
+        @Suppress("DEPRECATION")
+        val bitmapIcon = notification.largeIcon
+        if (bitmapIcon != null) return bitmapIcon
+        null
     }.getOrNull()
 }
 

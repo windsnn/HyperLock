@@ -46,7 +46,8 @@ internal fun HyperSystemUiModule.shortcutIconColorMode(preferences: SharedPrefer
 internal fun HyperSystemUiModule.isNotificationFodPositionLimitRemoved(preferences: SharedPreferences): Boolean =
     preferences.getBoolean(KEY_NOTIFICATION_FOD_POSITION_LIMIT_REMOVED, false)
 
-internal fun HyperSystemUiModule.readInstanceField(instance: Any, name: String): Any? {
+internal fun readInstanceField(instance: Any?, name: String): Any? {
+    if (instance == null) return null
     var type: Class<*>? = instance.javaClass
     while (type != null) {
         val field = runCatching { type.getDeclaredField(name) }.getOrNull()
