@@ -56,6 +56,7 @@ hyperos4-glass-blur-main/
 # Device captures and extracted system packages kept only for local analysis
 systemui/*.jar
 /systemui/decompiled/
+/aod/decompiled/
 /*.png
 /*.jpg
 /*.jpeg
