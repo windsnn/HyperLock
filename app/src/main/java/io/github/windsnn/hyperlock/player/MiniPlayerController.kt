@@ -662,8 +662,10 @@ internal class LockscreenMiniPlayerController(
         view.bind(
             title = title,
             artist = rawArtist,
-            artwork = controller.metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-                ?: controller.metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART),
+            artwork = (controller.metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+                ?: controller.metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+                ?: controller.metadata?.description?.iconBitmap)
+                ?: LockscreenMediaBridge.notificationArtwork,
             playing = state?.state == PlaybackState.STATE_PLAYING,
             appearance = currentAppearance,
             applyPlatformMaterial = applyPlatformMaterial,

@@ -1,5 +1,6 @@
 package io.github.windsnn.hyperlock.player
 
+import android.graphics.Bitmap
 import android.media.session.MediaController
 import java.util.Collections
 import java.util.WeakHashMap
@@ -47,6 +48,8 @@ internal object LockscreenMediaBridge {
         private set
     @Volatile var notificationKey: String? = null
         private set
+    @Volatile var notificationArtwork: Bitmap? = null
+        private set
 
     fun register(controller: LockscreenMiniPlayerController) {
         synchronized(listeners) { listeners += controller }
@@ -56,9 +59,10 @@ internal object LockscreenMediaBridge {
         synchronized(listeners) { listeners -= controller }
     }
 
-    fun update(controller: MediaController?, notificationKey: String?) {
+    fun update(controller: MediaController?, notificationKey: String?, notificationArtwork: Bitmap? = null) {
         this.controller = controller
         this.notificationKey = notificationKey
+        this.notificationArtwork = notificationArtwork
         val snapshot = synchronized(listeners) { listeners.toList() }
         snapshot.forEach { it.onPlatformMediaControllerUpdated() }
     }

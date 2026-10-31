@@ -1,7 +1,12 @@
 package io.github.windsnn.hyperlock.hook
 
 import android.app.KeyguardManager
+import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
@@ -121,13 +126,50 @@ internal fun HyperSystemUiModule.installLockscreenMediaManagerBridgeHooks(classL
                     val key = readInstanceField(chain.thisObject, "mMediaNotificationKey") as? String
                     val effectiveController = if (key.isNullOrBlank()) null else controller
                     val effectiveKey = if (controller == null) null else key
-                    LockscreenMediaBridge.update(effectiveController, effectiveKey)
+                    val artwork = if (effectiveKey != null) extractNotificationArtwork(chain.thisObject, effectiveKey) else null
+                    LockscreenMediaBridge.update(effectiveController, effectiveKey, artwork)
                     result
             }
         }
     }.onFailure { error ->
         hookLog(Log.ERROR, TAG, "Could not install NotificationMediaManager controller bridge", error)
     }
+}
+
+private fun extractNotificationArtwork(manager: Any?, key: String?): Bitmap? {
+    if (manager == null || key.isNullOrBlank()) return null
+    return runCatching {
+        val notifCollection = readInstanceField(manager, "mNotifCollection")
+        val entry = notifCollection?.let { collection ->
+            val getEntryMethod = collection.javaClass.getMethod("getEntry", String::class.java)
+            getEntryMethod.invoke(collection, key)
+        } ?: run {
+            val pipeline = readInstanceField(manager, "mNotifPipeline")
+            val allNotifs = pipeline?.javaClass?.getMethod("getAllNotifs")?.invoke(pipeline) as? Collection<*>
+            allNotifs?.firstOrNull { item ->
+                (readInstanceField(item, "mKey") as? String ?: readInstanceField(item, "key") as? String) == key
+            }
+        } ?: return null
+
+        val sbn = readInstanceField(entry, "mSbn") as? android.service.notification.StatusBarNotification
+            ?: return null
+        val notification = sbn.notification ?: return null
+        val icon = notification.largeIcon ?: return null
+        val context = (readInstanceField(manager, "mContext") as? Context)
+            ?: (readInstanceField(entry, "mContext") as? Context)
+            ?: return null
+        val drawable = icon.loadDrawable(context) ?: return null
+        if (drawable is BitmapDrawable && drawable.bitmap != null) {
+            return drawable.bitmap
+        }
+        val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth.coerceAtMost(256) else 128
+        val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight.coerceAtMost(256) else 128
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        drawable.setBounds(0, 0, canvas.width, canvas.height)
+        drawable.draw(canvas)
+        bitmap
+    }.getOrNull()
 }
 
 internal fun HyperSystemUiModule.installLockscreenMediaHeaderHook(
