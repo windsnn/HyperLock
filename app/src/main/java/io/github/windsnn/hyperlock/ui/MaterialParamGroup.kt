@@ -1,7 +1,9 @@
 package io.github.windsnn.hyperlock.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import io.github.windsnn.hyperlock.HookSettings
+import io.github.windsnn.hyperlock.R
 import io.github.windsnn.hyperlock.settings.ELEMENT_BLEND_DEFAULT_BLUR_DP
 import io.github.windsnn.hyperlock.settings.ELEMENT_BLEND_DEFAULT_OPACITY
 import io.github.windsnn.hyperlock.settings.SOFT_GLASS_DEFAULT_BACKDROP_BLUR_RADIUS
@@ -28,31 +30,31 @@ internal data class MaterialSpec(
 
 /** 标题文案：默认取快捷功能背景一侧，播放器侧见 [PLAYER]。 */
 internal data class MaterialParamTitles(
-    val pureColor: String = "背景颜色",
-    val pureOpacity: String = "透明度",
-    val advancedColor: String = "背景颜色",
-    val advancedOpacity: String = "透明度",
-    val advancedBlur: String = "背景模糊度",
-    val advancedHighlight: String = "显示高光",
-    val softColor: String = "混色颜色",
-    val softOpacity: String = "透明度",
-    val softBackdropBlur: String = "背景模糊度",
-    val softGlassBlur: String = "Glass 模糊度",
-    val softLuminance: String = "柔光强度",
+    val pureColorRes: Int = R.string.mat_bg_color,
+    val pureOpacityRes: Int = R.string.mat_opacity,
+    val advancedColorRes: Int = R.string.mat_bg_color,
+    val advancedOpacityRes: Int = R.string.mat_opacity,
+    val advancedBlurRes: Int = R.string.mat_bg_blur,
+    val advancedHighlightRes: Int = R.string.mat_highlight,
+    val softColorRes: Int = R.string.mat_blend_color,
+    val softOpacityRes: Int = R.string.mat_opacity,
+    val softBackdropBlurRes: Int = R.string.mat_bg_blur,
+    val softGlassBlurRes: Int = R.string.mat_glass_blur,
+    val softLuminanceRes: Int = R.string.mat_luminance,
 ) {
     companion object {
         val PLAYER = MaterialParamTitles(
-            pureColor = "播放器背景颜色",
-            pureOpacity = "播放器透明度",
-            advancedColor = "播放器混色颜色",
-            advancedOpacity = "播放器透明度",
-            advancedBlur = "播放器背景模糊度",
-            advancedHighlight = "播放器显示高光",
-            softColor = "播放器混色颜色",
-            softOpacity = "播放器透明度",
-            softBackdropBlur = "播放器背景模糊度",
-            softGlassBlur = "播放器 Glass 模糊度",
-            softLuminance = "播放器柔光强度",
+            pureColorRes = R.string.mat_player_bg_color,
+            pureOpacityRes = R.string.mat_player_opacity,
+            advancedColorRes = R.string.mat_player_blend_color,
+            advancedOpacityRes = R.string.mat_player_opacity,
+            advancedBlurRes = R.string.mat_player_bg_blur,
+            advancedHighlightRes = R.string.mat_player_highlight,
+            softColorRes = R.string.mat_player_blend_color,
+            softOpacityRes = R.string.mat_player_opacity,
+            softBackdropBlurRes = R.string.mat_player_bg_blur,
+            softGlassBlurRes = R.string.mat_player_glass_blur,
+            softLuminanceRes = R.string.mat_player_luminance,
         )
     }
 }
@@ -72,13 +74,13 @@ internal fun MaterialParamGroup(
     when (mode) {
         1 -> {
             ShortcutBackgroundColorPreference(
-                title = titles.pureColor,
+                title = stringResource(titles.pureColorRes),
                 color = spec.pureColor,
                 onColorChange = { onChange(spec.copy(pureColor = it)) },
             )
             if (showPureOpacity) {
                 ParameterSlider(
-                    title = titles.pureOpacity,
+                    title = stringResource(titles.pureOpacityRes),
                     value = spec.pureOpacity.toFloat(),
                     range = 0f..100f,
                     defaultValue = 45f,
@@ -90,12 +92,12 @@ internal fun MaterialParamGroup(
         }
         2 -> {
             ShortcutBackgroundColorPreference(
-                title = titles.advancedColor,
+                title = stringResource(titles.advancedColorRes),
                 color = spec.advancedColor,
                 onColorChange = { onChange(spec.copy(advancedColor = it)) },
             )
             ParameterSlider(
-                title = titles.advancedOpacity,
+                title = stringResource(titles.advancedOpacityRes),
                 value = spec.advancedOpacity.toFloat(),
                 range = 0f..100f,
                 defaultValue = ELEMENT_BLEND_DEFAULT_OPACITY.toFloat(),
@@ -104,7 +106,7 @@ internal fun MaterialParamGroup(
                 spaceBeforeUnit = false,
             ) { onChange(spec.copy(advancedOpacity = it.roundToInt())) }
             ParameterSlider(
-                title = titles.advancedBlur,
+                title = stringResource(titles.advancedBlurRes),
                 value = spec.advancedBlur.toFloat(),
                 range = 0f..100f,
                 defaultValue = ELEMENT_BLEND_DEFAULT_BLUR_DP.toFloat(),
@@ -113,19 +115,19 @@ internal fun MaterialParamGroup(
                 spaceBeforeUnit = false,
             ) { onChange(spec.copy(advancedBlur = it.roundToInt())) }
             SwitchPreference(
-                title = titles.advancedHighlight,
+                title = stringResource(titles.advancedHighlightRes),
                 checked = spec.advancedHighlight,
                 onCheckedChange = { onChange(spec.copy(advancedHighlight = it)) },
             )
         }
         3 -> {
             ShortcutBackgroundColorPreference(
-                title = titles.softColor,
+                title = stringResource(titles.softColorRes),
                 color = spec.softColor,
                 onColorChange = { onChange(spec.copy(softColor = it)) },
             )
             ParameterSlider(
-                title = titles.softOpacity,
+                title = stringResource(titles.softOpacityRes),
                 value = spec.softOpacity.toFloat(),
                 range = 0f..100f,
                 defaultValue = SOFT_GLASS_DEFAULT_OPACITY.toFloat(),
@@ -134,7 +136,7 @@ internal fun MaterialParamGroup(
                 spaceBeforeUnit = false,
             ) { onChange(spec.copy(softOpacity = it.roundToInt())) }
             ParameterSlider(
-                title = titles.softBackdropBlur,
+                title = stringResource(titles.softBackdropBlurRes),
                 value = spec.softBackdropBlur.toFloat(),
                 range = 0f..100f,
                 defaultValue = SOFT_GLASS_DEFAULT_BACKDROP_BLUR_RADIUS.toFloat(),
@@ -143,7 +145,7 @@ internal fun MaterialParamGroup(
                 spaceBeforeUnit = false,
             ) { onChange(spec.copy(softBackdropBlur = it.roundToInt())) }
             ParameterSlider(
-                title = titles.softGlassBlur,
+                title = stringResource(titles.softGlassBlurRes),
                 value = spec.softGlassBlur.toFloat(),
                 range = 0f..100f,
                 defaultValue = SOFT_GLASS_DEFAULT_BLUR_RADIUS.toFloat(),
@@ -152,7 +154,7 @@ internal fun MaterialParamGroup(
                 spaceBeforeUnit = false,
             ) { onChange(spec.copy(softGlassBlur = it.roundToInt())) }
             ParameterSlider(
-                title = titles.softLuminance,
+                title = stringResource(titles.softLuminanceRes),
                 value = spec.softLuminance,
                 range = 0f..0.5f,
                 defaultValue = SOFT_GLASS_DEFAULT_LUMINANCE,

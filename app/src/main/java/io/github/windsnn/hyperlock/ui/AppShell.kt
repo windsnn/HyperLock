@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.core.view.WindowCompat
 import com.kyant.backdrop.Backdrop
@@ -42,11 +43,12 @@ import com.kyant.backdrop.drawPlainBackdrop
 import top.yukonga.miuix.kmp.icon.extended.All
 import io.github.windsnn.hyperlock.HookSettings
 import io.github.windsnn.hyperlock.HookSettingsStore
+import io.github.windsnn.hyperlock.R
 import io.github.windsnn.hyperlock.ScopeApplication
 
-internal enum class Tab(val title: String) {
-    LOCK("锁屏"),
-    SETTINGS("设置"),
+internal enum class Tab(val titleRes: Int) {
+    LOCK(R.string.tab_lock),
+    SETTINGS(R.string.tab_settings),
 }
 
 internal enum class PageId {
@@ -190,12 +192,12 @@ internal fun BottomBar(
                 ) {
                     Image(
                         imageVector = if (item == Tab.LOCK) MiuixIcons.Regular.All else MiuixIcons.Regular.Settings,
-                        contentDescription = item.title,
+                        contentDescription = stringResource(item.titleRes),
                         colorFilter = ColorFilter.tint(color),
                         modifier = Modifier.size(24.dp),
                     )
                     Text(
-                        text = item.title,
+                        text = stringResource(item.titleRes),
                         style = MiuixTheme.textStyles.body2,
                         color = color,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,

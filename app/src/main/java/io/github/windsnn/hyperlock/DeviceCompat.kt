@@ -23,11 +23,11 @@ internal data class DeviceCompat(
 ) {
     internal enum class Level { SUPPORTED, UNVERIFIED, UNSUPPORTED }
 
-    val title: String
+    val titleRes: Int
         get() = when (level) {
-            Level.SUPPORTED -> "已适配"
-            Level.UNVERIFIED -> "未验证的系统"
-            Level.UNSUPPORTED -> "不支持的系统"
+            Level.SUPPORTED -> R.string.device_compat_supported
+            Level.UNVERIFIED -> R.string.device_compat_unverified
+            Level.UNSUPPORTED -> R.string.device_compat_unsupported
         }
 }
 
@@ -52,33 +52,33 @@ internal fun checkDeviceCompat(context: Context): DeviceCompat {
     }
 
     val reason = when (level) {
-        DeviceCompat.Level.SUPPORTED -> "澎湃 OS 4，处于适配范围内"
+        DeviceCompat.Level.SUPPORTED -> context.getString(R.string.device_compat_reason_supported)
         DeviceCompat.Level.UNVERIFIED ->
-            "系统版本 $rom 不是适配所用的澎湃 OS 4，部分功能可能失效"
+            context.getString(R.string.device_compat_reason_unverified, rom)
         DeviceCompat.Level.UNSUPPORTED ->
             if (Build.VERSION.SDK_INT < 33) {
-                "需要 Android 13 及以上"
+                context.getString(R.string.device_compat_reason_android_req)
             } else {
-                "未识别到澎湃 OS（当前 $rom），本模块仅适配澎湃 OS 4"
+                context.getString(R.string.device_compat_reason_not_hyperos, rom)
             }
     }
 
     val notes = buildList {
         if (systemUi == null) {
-            add("未找到系统界面（System UI）")
+            add(context.getString(R.string.device_compat_note_no_systemui))
         } else if (level == DeviceCompat.Level.SUPPORTED && systemUi != BASELINE_SYSTEM_UI_VERSION) {
-            add("系统界面 $systemUi 未在测试版本上验证")
+            add(context.getString(R.string.device_compat_note_systemui_unverified, systemUi))
         }
         if (aod == null) {
-            add("未安装「息屏与锁屏编辑」，息屏相关功能不可用")
+            add(context.getString(R.string.device_compat_note_no_aod))
         }
     }
 
     return DeviceCompat(
         level = level,
         deviceName = "${Build.MANUFACTURER} ${Build.MODEL}".trim(),
-        romVersion = rom.ifEmpty { "未知" },
-        androidVersion = "Android ${Build.VERSION.RELEASE}（API ${Build.VERSION.SDK_INT}）",
+        romVersion = rom.ifEmpty { context.getString(R.string.device_compat_unknown) },
+        androidVersion = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
         systemUiVersion = systemUi,
         aodVersion = aod,
         reason = reason,

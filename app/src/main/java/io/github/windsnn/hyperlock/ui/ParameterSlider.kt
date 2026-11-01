@@ -8,6 +8,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
+import io.github.windsnn.hyperlock.R
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.preference.SliderPreference
@@ -124,6 +126,6 @@ internal fun Dim(
     unit: String = "dp",
     save: (Float) -> Unit,
 ) {
-    SwitchPreference(title = "自定义$title", checked = enabled, onCheckedChange = changeEnabled)
+    SwitchPreference(title = stringResource(R.string.pref_custom_dim_prefix, title), checked = enabled, onCheckedChange = changeEnabled)
     if (enabled) ParameterSlider(title, value, range, defaultValue = defaultValue, unit = unit, save = save)
 }

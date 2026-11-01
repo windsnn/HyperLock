@@ -10,14 +10,14 @@ object SystemUiRestarter {
     fun restart(context: Context, targets: Set<ScopeApplication>) {
         thread(name = "scope-app-restart", isDaemon = true) {
             if (targets.isEmpty()) {
-                showToast(context, "请至少选择一个作用域应用")
+                showToast(context, context.getString(R.string.toast_restart_select_one))
                 return@thread
             }
 
             val rootCheck = runSu("id")
             if (rootCheck.exitCode != 0 || !rootCheck.output.contains("uid=0")) {
                 HyperLog.e("Restarter", "Root permission denied or unavailable: exitCode=${rootCheck.exitCode}")
-                showToast(context, "未获得 root 权限，重启失败")
+                showToast(context, context.getString(R.string.toast_restart_no_root))
                 return@thread
             }
 
@@ -28,16 +28,16 @@ object SystemUiRestarter {
                     // 未锚定时可能命中无关进程（AGENTS.md 只允许这两个目标）。
                     val pattern = "^" + target.packageName.replace(".", "\\.") + "($| )"
                     if (runSu("pkill -f '$pattern'").exitCode != 0) {
-                        add(target.title)
+                        add(context.getString(target.titleRes))
                     }
                 }
             }
             if (failed.isEmpty()) {
-                HyperLog.i("Restarter", "Successfully restarted scopes: ${targets.map { it.title }}")
-                showToast(context, "已重启选中的作用域应用")
+                HyperLog.i("Restarter", "Successfully restarted scopes: ${targets.map { context.getString(it.titleRes) }}")
+                showToast(context, context.getString(R.string.toast_restart_success))
             } else {
-                HyperLog.w("Restarter", "Failed to restart scopes: ${failed.joinToString("、")}")
-                showToast(context, "重启失败：${failed.joinToString("、")}")
+                HyperLog.w("Restarter", "Failed to restart scopes: ${failed.joinToString(", ")}")
+                showToast(context, context.getString(R.string.toast_restart_failed, failed.joinToString(", ")))
             }
         }
     }
@@ -61,7 +61,7 @@ object SystemUiRestarter {
     private data class CommandResult(val exitCode: Int, val output: String)
 }
 
-enum class ScopeApplication(val title: String, val packageName: String) {
-    SYSTEM_UI("系统界面", "com.android.systemui"),
-    AOD("息屏与锁屏编辑", "com.miui.aod"),
+enum class ScopeApplication(val titleRes: Int, val packageName: String) {
+    SYSTEM_UI(R.string.scope_system_ui, "com.android.systemui"),
+    AOD(R.string.scope_aod, "com.miui.aod"),
 }

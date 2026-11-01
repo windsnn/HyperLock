@@ -21,10 +21,11 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.rememberLayerBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.runtimeShaderEffect
 import com.kyant.backdrop.effects.vibrancy
@@ -52,6 +53,7 @@ import com.kyant.backdrop.drawPlainBackdrop
 import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import io.github.windsnn.hyperlock.DeviceCompat
+import io.github.windsnn.hyperlock.R
 import io.github.windsnn.hyperlock.ScopeApplication
 
 @Composable
@@ -168,7 +170,7 @@ internal fun GlassBackButton(backdrop: LayerBackdrop, collapsedFraction: Float, 
         )
         Image(
             MiuixIcons.Regular.ChevronBackward,
-            "返回",
+            stringResource(R.string.action_back),
             Modifier.size(22.dp).graphicsLayer { translationX = -1.15.dp.toPx() },
             colorFilter = ColorFilter.tint(iconColor),
         )
@@ -212,7 +214,7 @@ internal fun GlassRestoreButton(backdrop: LayerBackdrop, collapsedFraction: Floa
         )
         Image(
             MiuixIcons.Regular.Refresh,
-            "恢复默认值",
+            stringResource(R.string.action_restore_defaults),
             Modifier.size(22.dp),
             colorFilter = ColorFilter.tint(iconColor),
         )
@@ -250,7 +252,7 @@ internal fun ServiceCard(online: Boolean) {
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.defaultColors(color.copy(alpha = .14f)), insideMargin = PaddingValues(16.dp)) {
         Column(Modifier.fillMaxWidth()) {
             Text("LSPosed", style = MiuixTheme.textStyles.body1, fontWeight = FontWeight.Bold)
-            Text(if (online) "已连接" else "未连接", style = MiuixTheme.textStyles.body2, color = color, modifier = Modifier.padding(top = 4.dp))
+            Text(if (online) stringResource(R.string.status_connected) else stringResource(R.string.status_disconnected), style = MiuixTheme.textStyles.body2, color = color, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }
@@ -265,13 +267,13 @@ internal fun DeviceCompatCard(compat: DeviceCompat) {
     }
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.defaultColors(color.copy(alpha = .14f)), insideMargin = PaddingValues(16.dp)) {
         Column(Modifier.fillMaxWidth()) {
-            Text("设备检测", style = MiuixTheme.textStyles.body1, fontWeight = FontWeight.Bold)
-            Text(compat.title, style = MiuixTheme.textStyles.body2, color = color, modifier = Modifier.padding(top = 4.dp))
+            Text(stringResource(R.string.device_compat_title), style = MiuixTheme.textStyles.body1, fontWeight = FontWeight.Bold)
+            Text(stringResource(compat.titleRes), style = MiuixTheme.textStyles.body2, color = color, modifier = Modifier.padding(top = 4.dp))
             Text(
                 listOfNotNull(
                     compat.deviceName,
                     compat.romVersion,
-                    compat.systemUiVersion?.let { "系统界面 $it" },
+                    compat.systemUiVersion?.let { stringResource(R.string.device_compat_systemui_prefix, it) },
                 ).joinToString(" · "),
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -326,8 +328,8 @@ internal fun ScopeGroup(
     val displayTitle = if (isEnabled) {
         title
     } else {
-        val missingNames = missingScopes.joinToString("、") { it.title }
-        "$title (未勾选${missingNames}作用域)"
+        val missingNames = missingScopes.joinToString(", ") { context.getString(it.titleRes) }
+        context.getString(R.string.scope_missing_title, title, missingNames)
     }
 
     Column(Modifier.fillMaxWidth()) {
@@ -356,8 +358,8 @@ internal fun ScopeGroup(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                         ) {
-                            val names = missingScopes.joinToString("、") { "「${it.title}」" }
-                            Toast.makeText(context, "未在 LSPosed 中勾选 $names 作用域，无法配置", Toast.LENGTH_SHORT).show()
+                            val names = missingScopes.joinToString(", ") { context.getString(it.titleRes) }
+                            Toast.makeText(context, context.getString(R.string.scope_missing_toast, names), Toast.LENGTH_SHORT).show()
                         },
                 )
             }

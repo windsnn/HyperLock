@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
@@ -22,11 +23,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
+import io.github.windsnn.hyperlock.R
 import io.github.windsnn.hyperlock.settings.LOCKSCREEN_TEXT_CHARGING
 import io.github.windsnn.hyperlock.settings.LOCKSCREEN_TEXT_DND
 import io.github.windsnn.hyperlock.settings.LOCKSCREEN_TEXT_NOTIFICATIONS
 import kotlin.math.roundToInt
-
 
 @Composable
 internal fun LockScreenBottomTextDialog(
@@ -37,13 +38,13 @@ internal fun LockScreenBottomTextDialog(
 ) {
     var selected by remember(show, mask) { mutableIntStateOf(mask) }
     val items = listOf(
-        LOCKSCREEN_TEXT_CHARGING to "充电中",
-        LOCKSCREEN_TEXT_DND to "勿扰",
-        LOCKSCREEN_TEXT_NOTIFICATIONS to "X个通知",
+        LOCKSCREEN_TEXT_CHARGING to stringResource(R.string.bottom_text_charging),
+        LOCKSCREEN_TEXT_DND to stringResource(R.string.bottom_text_dnd),
+        LOCKSCREEN_TEXT_NOTIFICATIONS to stringResource(R.string.bottom_text_notifications),
     )
     WindowDialog(show = show, onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("选择要隐藏的锁屏底部文本", style = MiuixTheme.textStyles.title3, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.dialog_bottom_text_title), style = MiuixTheme.textStyles.title3, fontWeight = FontWeight.Bold)
             items.forEach { (bit, title) ->
                 val toggle = { selected = if (selected and bit != 0) selected and bit.inv() else selected or bit }
                 Row(Modifier.fillMaxWidth().clickable(onClick = toggle).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -53,8 +54,8 @@ internal fun LockScreenBottomTextDialog(
             }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onDismiss, Modifier.weight(1f)) { Text("取消") }
-                Button({ onApply(selected) }, Modifier.weight(1f), colors = ButtonDefaults.buttonColorsPrimary()) { Text("应用") }
+                Button(onDismiss, Modifier.weight(1f)) { Text(stringResource(R.string.action_cancel)) }
+                Button({ onApply(selected) }, Modifier.weight(1f), colors = ButtonDefaults.buttonColorsPrimary()) { Text(stringResource(R.string.action_apply)) }
             }
         }
     }
@@ -69,34 +70,33 @@ internal fun RestoreDefaultsDialog(
     WindowDialog(show = show, onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = "恢复默认值",
+                text = stringResource(R.string.dialog_restore_defaults_title),
                 style = MiuixTheme.textStyles.title3,
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "确定要将所有锁屏个性化参数恢复为默认推荐值吗？系统设置和详细日志选项将保留。",
+                text = stringResource(R.string.dialog_restore_defaults_desc),
                 style = MiuixTheme.textStyles.body1,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onDismiss, Modifier.weight(1f)) { Text("取消") }
+                Button(onDismiss, Modifier.weight(1f)) { Text(stringResource(R.string.action_cancel)) }
                 Button(
                     onClick = onConfirm,
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColorsPrimary(),
                 ) {
-                    Text("恢复默认")
+                    Text(stringResource(R.string.action_restore_defaults))
                 }
             }
         }
     }
 }
 
-
 @Composable
 internal fun ShortcutBackgroundColorPreference(
-    title: String = "背景颜色",
+    title: String,
     color: Int,
     onColorChange: (Int) -> Unit,
 ) {
@@ -141,7 +141,7 @@ internal fun ShortcutBackgroundColorDialog(
     WindowDialog(show = show, onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "选择背景颜色",
+                stringResource(R.string.dialog_choose_color),
                 modifier = Modifier.fillMaxWidth(),
                 style = MiuixTheme.textStyles.title3,
                 fontWeight = FontWeight.Bold,
@@ -158,17 +158,16 @@ internal fun ShortcutBackgroundColorDialog(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Button(onDismiss, Modifier.weight(1f)) { Text("取消") }
+                Button(onDismiss, Modifier.weight(1f)) { Text(stringResource(R.string.action_cancel)) }
                 Button(
                     onClick = { onConfirm(draftColor) },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColorsPrimary(),
-                ) { Text("确定") }
+                ) { Text(stringResource(R.string.action_confirm)) }
             }
         }
     }
 }
-
 
 @Composable
 internal fun ValueInputChip(
@@ -223,14 +222,14 @@ internal fun ValueInputDialog(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = "自定义$title",
+                text = stringResource(R.string.dialog_custom_value_prefix, title),
                 style = MiuixTheme.textStyles.title3,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Start,
             )
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = "有效范围：$rangeDesc",
+                    text = stringResource(R.string.dialog_valid_range, rangeDesc),
                     style = MiuixTheme.textStyles.body2,
                     color = MiuixTheme.colorScheme.onSurfaceVariantActions,
                 )
@@ -241,12 +240,12 @@ internal fun ValueInputDialog(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "默认推荐值：$defaultText$unitSuffix",
+                            text = stringResource(R.string.dialog_default_recommended, "$defaultText$unitSuffix"),
                             style = MiuixTheme.textStyles.body2,
                             color = MiuixTheme.colorScheme.onSurfaceVariantActions,
                         )
                         Text(
-                            text = "填入默认值",
+                            text = stringResource(R.string.dialog_fill_default),
                             style = MiuixTheme.textStyles.body2,
                             color = MiuixTheme.colorScheme.primary,
                             fontWeight = FontWeight.Medium,
@@ -261,7 +260,7 @@ internal fun ValueInputDialog(
             TextField(
                 value = text,
                 onValueChange = { text = it.trim() },
-                label = if (unit.isNotBlank()) "输入数值 ($unit)" else "输入数值",
+                label = if (unit.isNotBlank()) stringResource(R.string.dialog_input_value_with_unit_label, unit) else stringResource(R.string.dialog_input_value_label),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = if (min < 0) KeyboardType.Text else if (isDecimal) KeyboardType.Decimal else KeyboardType.Number,
                 ),
@@ -276,7 +275,7 @@ internal fun ValueInputDialog(
                     onClick = onDismiss,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text("取消")
+                    Text(stringResource(R.string.action_cancel))
                 }
                 Button(
                     onClick = {
@@ -292,7 +291,7 @@ internal fun ValueInputDialog(
                     enabled = parsed != null,
                     colors = ButtonDefaults.buttonColorsPrimary(),
                 ) {
-                    Text("确定")
+                    Text(stringResource(R.string.action_confirm))
                 }
             }
         }

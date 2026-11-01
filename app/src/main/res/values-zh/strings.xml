@@ -1,0 +1,212 @@
+<resources>
+    <!-- App -->
+    <string name="app_name">澎湃锁屏</string>
+
+    <!-- Navigation &amp; Tabs -->
+    <string name="tab_lock">锁屏</string>
+    <string name="tab_settings">设置</string>
+    <string name="page_lockscreen">锁屏</string>
+    <string name="page_settings">设置</string>
+    <string name="page_about">关于</string>
+    <string name="page_open_source">开源代码声明</string>
+
+    <!-- Common Actions &amp; Buttons -->
+    <string name="action_cancel">取消</string>
+    <string name="action_confirm">确定</string>
+    <string name="action_apply">应用</string>
+    <string name="action_back">返回</string>
+    <string name="action_restore_defaults">恢复默认值</string>
+    <string name="action_restart">重启</string>
+
+    <!-- Service Card -->
+    <string name="status_connected">已连接</string>
+    <string name="status_disconnected">未连接</string>
+
+    <!-- Device Compatibility Card -->
+    <string name="device_compat_title">设备检测</string>
+    <string name="device_compat_supported">已适配</string>
+    <string name="device_compat_unverified">未验证的系统</string>
+    <string name="device_compat_unsupported">不支持的系统</string>
+    <string name="device_compat_reason_supported">澎湃 OS 4，处于适配范围内</string>
+    <string name="device_compat_reason_unverified">系统版本 %1$s 不是适配所用的澎湃 OS 4，部分功能可能失效</string>
+    <string name="device_compat_reason_android_req">需要 Android 13 及以上</string>
+    <string name="device_compat_reason_not_hyperos">未识别到澎湃 OS（当前 %1$s），本模块仅适配澎湃 OS 4</string>
+    <string name="device_compat_note_no_systemui">未找到系统界面（System UI）</string>
+    <string name="device_compat_note_systemui_unverified">系统界面 %1$s 未在测试版本上验证</string>
+    <string name="device_compat_note_no_aod">未安装「息屏与锁屏编辑」，息屏相关功能不可用</string>
+    <string name="device_compat_unknown">未知</string>
+    <string name="device_compat_systemui_prefix">系统界面 %1$s</string>
+
+    <!-- Scope Application Names -->
+    <string name="scope_system_ui">系统界面</string>
+    <string name="scope_aod">息屏与锁屏编辑</string>
+    <string name="scope_missing_title">%1$s (未勾选%2$s作用域)</string>
+    <string name="scope_missing_toast">未在 LSPosed 中勾选 %1$s 作用域，无法配置</string>
+
+    <!-- Restarter Toasts -->
+    <string name="toast_restart_select_one">请至少选择一个作用域应用</string>
+    <string name="toast_restart_no_root">未获得 root 权限，重启失败</string>
+    <string name="toast_restart_success">已重启选中的作用域应用</string>
+    <string name="toast_restart_failed">重启失败：%1$s</string>
+
+    <!-- Settings Page -->
+    <string name="group_app_settings">应用设置</string>
+    <string name="pref_restart_scopes">重启作用域应用</string>
+    <string name="pref_language">语言</string>
+    <string name="language_system">跟随系统</string>
+    <string name="language_zh_cn">简体中文</string>
+    <string name="language_en">English</string>
+    <string name="pref_theme_mode">主题模式</string>
+    <string name="theme_mode_system">跟随系统</string>
+    <string name="theme_mode_light">浅色模式</string>
+    <string name="theme_mode_dark">深色模式</string>
+    <string name="pref_verbose_log">详细日志</string>
+    <string name="pref_verbose_log_summary">捕获运行状态与排查日志，默认关闭仅记录异常</string>
+    <string name="group_app_info">应用信息</string>
+    <string name="pref_about">关于</string>
+
+    <!-- Restart Scope Dialog -->
+    <string name="dialog_restart_scope_title">重启作用域应用</string>
+    <string name="dialog_restart_scope_subtitle">选择需要重启的应用</string>
+
+    <!-- Lockscreen Page: Groups &amp; Preferences -->
+    <string name="group_depth_clock">景深与时钟</string>
+    <string name="pref_remove_depth_limit">去除景深限制</string>
+    <string name="pref_remove_clock_material_limit">解除“玻璃”时钟材质限制</string>
+
+    <string name="group_notification_fingerprint">通知下沉与指纹</string>
+    <string name="pref_remove_notification_pos_limit">去除通知下沉位置限制</string>
+    <string name="pref_hide_fingerprint_icon">隐藏指纹图标</string>
+    <string name="fingerprint_hide_mode_none">不隐藏</string>
+    <string name="fingerprint_hide_mode_lockscreen">仅锁屏隐藏</string>
+    <string name="fingerprint_hide_mode_global">全局隐藏</string>
+
+    <string name="group_bottom_text">锁屏底部文本</string>
+    <string name="pref_hide_bottom_text">隐藏锁屏底部文本</string>
+    <string name="bottom_text_charging">充电中</string>
+    <string name="bottom_text_dnd">勿扰</string>
+    <string name="bottom_text_notifications">X个通知</string>
+    <string name="bottom_text_none">未隐藏</string>
+    <string name="dialog_bottom_text_title">选择要隐藏的锁屏底部文本</string>
+
+    <string name="group_pin_entry">锁屏输入密码界面</string>
+    <string name="pref_pin_circle_background">数字圆形背景</string>
+    <string name="pref_pin_circle_row_spacing">按键行间距</string>
+
+    <!-- Mini Music Player -->
+    <string name="group_mini_player">迷你音乐播放器</string>
+    <string name="pref_mini_player">锁屏迷你音乐播放器</string>
+    <string name="pref_mini_player_summary">显示在底部快捷按钮之间，跟随当前媒体会话</string>
+    <string name="pref_mini_player_media_notification">锁屏媒体通知</string>
+    <string name="media_notification_mode_keep">不隐藏</string>
+    <string name="media_notification_mode_hide">始终隐藏</string>
+    <string name="media_notification_mode_dynamic">动态显示</string>
+    <string name="pref_mini_player_content_color">播放器与歌词颜色</string>
+    <string name="color_mode_auto">自动模式</string>
+    <string name="color_mode_light">浅色</string>
+    <string name="color_mode_dark">深色</string>
+    <string name="pref_mini_player_bg">迷你播放器背景</string>
+    <string name="player_bg_mode_follow">跟随快捷功能背景</string>
+    <string name="player_bg_mode_pure">纯色</string>
+    <string name="player_bg_mode_advanced">高级材质</string>
+    <string name="player_bg_mode_soft_glass">柔光玻璃</string>
+    <string name="pref_mini_player_width">播放器宽度</string>
+    <string name="pref_mini_player_height">播放器高度</string>
+
+    <!-- Lyrics -->
+    <string name="group_lyrics">锁屏歌词</string>
+    <string name="pref_lyrics_display">锁屏歌词显示</string>
+    <string name="pref_lyrics_display_summary">选择锁屏歌词的触发与展示方式</string>
+    <string name="lyrics_mode_off">完全关闭</string>
+    <string name="lyrics_mode_always">常驻显示</string>
+    <string name="lyrics_mode_long_press">长按手动开关</string>
+    <string name="pref_lyrics_translation">显示歌词翻译</string>
+    <string name="pref_lyrics_translation_summary">展示外语歌曲对应的中文译文</string>
+    <string name="pref_lyrics_roma">显示罗马音</string>
+    <string name="pref_lyrics_roma_summary">展示日韩等语种歌曲的罗马拼音</string>
+    <string name="pref_lyrics_karaoke">逐字染色（卡拉OK）</string>
+    <string name="pref_lyrics_karaoke_summary">随人声演唱进度逐字点亮高亮染色；关闭后整句歌词保持常亮，仅进行平滑推镜</string>
+    <string name="pref_lyrics_text_size">歌词字号大小</string>
+    <string name="pref_lyrics_detail_gap">歌词与副行间距</string>
+    <string name="pref_lyrics_player_gap">与播放器间距</string>
+    <string name="pref_lyrics_lead_ms">歌词提前量</string>
+    <string name="pref_lyrics_shadow">强化歌词阴影</string>
+    <string name="pref_lyrics_shadow_summary">根据文字深浅自适应增强边缘投影或柔光晕，显著提升复杂壁纸下的辨识度</string>
+    <string name="pref_lyrics_hide_on_notification">有通知时自动隐藏</string>
+    <string name="pref_lyrics_hide_on_notification_summary">当锁屏收到常规通知卡片时自动隐藏浮动歌词，避免遮挡排版；划除通知后自动恢复</string>
+
+    <!-- Shortcut Buttons -->
+    <string name="group_shortcut_bg">快捷功能背景</string>
+    <string name="pref_shortcut_bg">锁屏快捷功能背景</string>
+    <string name="shortcut_bg_mode_none">不显示</string>
+    <string name="shortcut_bg_mode_pure">纯色</string>
+    <string name="shortcut_bg_mode_advanced">高级材质</string>
+    <string name="shortcut_bg_mode_soft_glass">柔光玻璃</string>
+    <string name="pref_shortcut_icon_color">快捷按钮图标颜色</string>
+    <string name="pref_shortcut_glass_radius">圆形半径</string>
+    <string name="pref_shortcut_bg_corner_radius">背景圆角半径</string>
+    <string name="pref_shortcut_spacing">快捷按钮间距</string>
+    <string name="pref_shortcut_icon_size">快捷按钮图标大小</string>
+
+    <!-- Restore Defaults Dialog -->
+    <string name="dialog_restore_defaults_title">恢复默认值</string>
+    <string name="dialog_restore_defaults_desc">确定要将所有锁屏个性化参数恢复为默认推荐值吗？系统设置和详细日志选项将保留。</string>
+    <string name="toast_defaults_restored">已恢复锁屏默认设置</string>
+
+    <!-- Material Parameters -->
+    <string name="mat_bg_color">背景颜色</string>
+    <string name="mat_opacity">透明度</string>
+    <string name="mat_bg_blur">背景模糊度</string>
+    <string name="mat_highlight">显示高光</string>
+    <string name="mat_blend_color">混色颜色</string>
+    <string name="mat_glass_blur">Glass 模糊度</string>
+    <string name="mat_luminance">柔光强度</string>
+
+    <string name="mat_player_bg_color">播放器背景颜色</string>
+    <string name="mat_player_opacity">播放器透明度</string>
+    <string name="mat_player_blend_color">播放器混色颜色</string>
+    <string name="mat_player_bg_blur">播放器背景模糊度</string>
+    <string name="mat_player_highlight">播放器显示高光</string>
+    <string name="mat_player_glass_blur">播放器 Glass 模糊度</string>
+    <string name="mat_player_luminance">播放器柔光强度</string>
+
+    <!-- Color Dialog &amp; Value Input -->
+    <string name="dialog_choose_color">选择背景颜色</string>
+    <string name="dialog_custom_value_prefix">自定义%1$s</string>
+    <string name="dialog_valid_range">有效范围：%1$s</string>
+    <string name="dialog_default_recommended">默认推荐值：%1$s</string>
+    <string name="dialog_fill_default">填入默认值</string>
+    <string name="dialog_input_value_label">输入数值</string>
+    <string name="dialog_input_value_with_unit_label">输入数值 (%1$s)</string>
+    <string name="pref_custom_dim_prefix">自定义%1$s</string>
+
+    <!-- About &amp; Open Source -->
+    <string name="about_app_desc">一个小巧的用于自定义小米澎湃 OS 锁屏与息屏的模块 (HyperLock)。</string>
+    <string name="about_group_open_source">开源与致谢</string>
+    <string name="about_item_repo">项目仓库</string>
+    <string name="about_item_upstream">上游项目</string>
+    <string name="about_item_upstream_summary">衍生自 github.com/ColdP/HyperChanger</string>
+    <string name="about_item_ui_lib">界面组件</string>
+    <string name="about_item_ui_lib_summary">基于 MIUIX 的 HyperOS 风格控件库</string>
+    <string name="about_item_licenses">开源许可</string>
+    <string name="about_item_licenses_summary">第三方组件、署名与许可文本</string>
+    <string name="about_disclaimer_title">免责声明</string>
+    <string name="about_disclaimer_text">本模块为个人第三方项目，与小米公司无任何关联，未获其授权或背书。\n它通过 LSPosed 修改系统界面与息屏的内部实现，仅在你勾选的作用域内生效；不同机型与系统版本的表现可能不同，未验证的版本请自行评估风险。\n刷机、Root、LSPosed 与安装本模块的风险由使用者自行承担。</string>
+
+    <string name="open_source_intro">澎湃锁屏 (HyperLock) 使用了以下开源项目，感谢所有项目作者与贡献者。</string>
+    <string name="open_source_projects_title">使用到的开源项目</string>
+    <string name="open_proj_miuix_desc">HyperOS 风格界面、偏好设置、图标与模糊效果</string>
+    <string name="open_proj_backdrop_desc">基于 RuntimeShader 的实时背景模糊渲染组件</string>
+    <string name="open_proj_shapes_desc">Compose 矢量形状与插值工具</string>
+    <string name="open_proj_lyricon_desc">锁屏迷你播放器歌词订阅与解析组件</string>
+    <string name="open_proj_libxposed_desc">Xposed 模块 API 与运行时服务</string>
+    <string name="open_proj_androidx_desc">core-ktx、activity-compose、lifecycle-runtime-compose、material-icons-extended</string>
+    <string name="open_proj_compose_desc">ui、foundation、animation</string>
+    <string name="open_proj_hyperchanger_desc">上游项目：代码与界面基础</string>
+
+    <string name="open_source_license_info">许可信息</string>
+    <string name="open_source_license_text_title">Apache License 2.0 全文</string>
+    <string name="open_source_third_party_title">第三方组件完整清单</string>
+    <string name="open_source_third_party_summary">含传递依赖与版本对应关系</string>
+    <string name="open_source_upstream_notice_title">上游署名与 MIT 许可</string>
+</resources>

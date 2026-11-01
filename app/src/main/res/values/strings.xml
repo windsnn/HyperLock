@@ -1,3 +1,212 @@
 <resources>
-    <string name="app_name">澎湃锁屏</string>
+    <!-- App -->
+    <string name="app_name">HyperLock</string>
+
+    <!-- Navigation &amp; Tabs -->
+    <string name="tab_lock">Lockscreen</string>
+    <string name="tab_settings">Settings</string>
+    <string name="page_lockscreen">Lockscreen</string>
+    <string name="page_settings">Settings</string>
+    <string name="page_about">About</string>
+    <string name="page_open_source">Open Source Licenses</string>
+
+    <!-- Common Actions &amp; Buttons -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_confirm">OK</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_back">Back</string>
+    <string name="action_restore_defaults">Restore Defaults</string>
+    <string name="action_restart">Restart</string>
+
+    <!-- Service Card -->
+    <string name="status_connected">Connected</string>
+    <string name="status_disconnected">Disconnected</string>
+
+    <!-- Device Compatibility Card -->
+    <string name="device_compat_title">Device Environment</string>
+    <string name="device_compat_supported">Supported</string>
+    <string name="device_compat_unverified">Unverified System</string>
+    <string name="device_compat_unsupported">Unsupported System</string>
+    <string name="device_compat_reason_supported">HyperOS 4, within supported range</string>
+    <string name="device_compat_reason_unverified">System version %1$s is not the tested HyperOS 4, some features may not work</string>
+    <string name="device_compat_reason_android_req">Requires Android 13 or higher</string>
+    <string name="device_compat_reason_not_hyperos">HyperOS not detected (current: %1$s), this module only targets HyperOS 4</string>
+    <string name="device_compat_note_no_systemui">System UI package not found</string>
+    <string name="device_compat_note_systemui_unverified">System UI %1$s has not been verified on this release</string>
+    <string name="device_compat_note_no_aod">\'Always-on display\' not installed, AOD features unavailable</string>
+    <string name="device_compat_unknown">Unknown</string>
+    <string name="device_compat_systemui_prefix">System UI %1$s</string>
+
+    <!-- Scope Application Names -->
+    <string name="scope_system_ui">System UI</string>
+    <string name="scope_aod">Always-on Display</string>
+    <string name="scope_missing_title">%1$s (missing %2$s scope)</string>
+    <string name="scope_missing_toast">Missing %1$s scope in LSPosed, unable to configure</string>
+
+    <!-- Restarter Toasts -->
+    <string name="toast_restart_select_one">Please select at least one application</string>
+    <string name="toast_restart_no_root">Root permission denied, restart failed</string>
+    <string name="toast_restart_success">Restarted selected scope applications</string>
+    <string name="toast_restart_failed">Restart failed: %1$s</string>
+
+    <!-- Settings Page -->
+    <string name="group_app_settings">App Settings</string>
+    <string name="pref_restart_scopes">Restart scope applications</string>
+    <string name="pref_language">Language</string>
+    <string name="language_system">Follow system</string>
+    <string name="language_zh_cn">简体中文</string>
+    <string name="language_en">English</string>
+    <string name="pref_theme_mode">Theme mode</string>
+    <string name="theme_mode_system">Follow system</string>
+    <string name="theme_mode_light">Light mode</string>
+    <string name="theme_mode_dark">Dark mode</string>
+    <string name="pref_verbose_log">Verbose logging</string>
+    <string name="pref_verbose_log_summary">Capture runtime events and diagnostic logs; disabled by default to only record errors</string>
+    <string name="group_app_info">App Info</string>
+    <string name="pref_about">About</string>
+
+    <!-- Restart Scope Dialog -->
+    <string name="dialog_restart_scope_title">Restart Scope Applications</string>
+    <string name="dialog_restart_scope_subtitle">Select applications to restart</string>
+
+    <!-- Lockscreen Page: Groups &amp; Preferences -->
+    <string name="group_depth_clock">Depth &amp; Clock</string>
+    <string name="pref_remove_depth_limit">Remove depth wallpaper limit</string>
+    <string name="pref_remove_clock_material_limit">Unlock \"Glass\" clock material limit</string>
+
+    <string name="group_notification_fingerprint">Notification &amp; Fingerprint</string>
+    <string name="pref_remove_notification_pos_limit">Remove notification drop position limit</string>
+    <string name="pref_hide_fingerprint_icon">Hide fingerprint icon</string>
+    <string name="fingerprint_hide_mode_none">Do not hide</string>
+    <string name="fingerprint_hide_mode_lockscreen">Lockscreen only</string>
+    <string name="fingerprint_hide_mode_global">Global</string>
+
+    <string name="group_bottom_text">Bottom Text</string>
+    <string name="pref_hide_bottom_text">Hide bottom text</string>
+    <string name="bottom_text_charging">Charging</string>
+    <string name="bottom_text_dnd">Do Not Disturb</string>
+    <string name="bottom_text_notifications">X Notifications</string>
+    <string name="bottom_text_none">None hidden</string>
+    <string name="dialog_bottom_text_title">Select bottom text to hide</string>
+
+    <string name="group_pin_entry">PIN Keypad Screen</string>
+    <string name="pref_pin_circle_background">Circular key backgrounds</string>
+    <string name="pref_pin_circle_row_spacing">Key row spacing</string>
+
+    <!-- Mini Music Player -->
+    <string name="group_mini_player">Mini Music Player</string>
+    <string name="pref_mini_player">Lockscreen mini music player</string>
+    <string name="pref_mini_player_summary">Positioned between bottom shortcut buttons, follows current media session</string>
+    <string name="pref_mini_player_media_notification">Lockscreen media notification</string>
+    <string name="media_notification_mode_keep">Do not hide</string>
+    <string name="media_notification_mode_hide">Always hide</string>
+    <string name="media_notification_mode_dynamic">Dynamic</string>
+    <string name="pref_mini_player_content_color">Player &amp; lyrics color</string>
+    <string name="color_mode_auto">Auto</string>
+    <string name="color_mode_light">Light</string>
+    <string name="color_mode_dark">Dark</string>
+    <string name="pref_mini_player_bg">Mini player background</string>
+    <string name="player_bg_mode_follow">Follow shortcut background</string>
+    <string name="player_bg_mode_pure">Solid color</string>
+    <string name="player_bg_mode_advanced">Advanced material</string>
+    <string name="player_bg_mode_soft_glass">Soft glass</string>
+    <string name="pref_mini_player_width">Player width</string>
+    <string name="pref_mini_player_height">Player height</string>
+
+    <!-- Lyrics -->
+    <string name="group_lyrics">Lockscreen Lyrics</string>
+    <string name="pref_lyrics_display">Lockscreen lyrics display</string>
+    <string name="pref_lyrics_display_summary">Select how lockscreen lyrics are triggered and displayed</string>
+    <string name="lyrics_mode_off">Disabled</string>
+    <string name="lyrics_mode_always">Always visible</string>
+    <string name="lyrics_mode_long_press">Long press toggle</string>
+    <string name="pref_lyrics_translation">Show lyrics translation</string>
+    <string name="pref_lyrics_translation_summary">Display translation for foreign songs</string>
+    <string name="pref_lyrics_roma">Show romanization</string>
+    <string name="pref_lyrics_roma_summary">Display romanized pronunciation for Japanese, Korean, etc.</string>
+    <string name="pref_lyrics_karaoke">Word-by-word karaoke</string>
+    <string name="pref_lyrics_karaoke_summary">Highlight text word-by-word with vocals; when disabled, the whole line stays lit with smooth scale</string>
+    <string name="pref_lyrics_text_size">Lyrics font size</string>
+    <string name="pref_lyrics_detail_gap">Lyrics &amp; subline spacing</string>
+    <string name="pref_lyrics_player_gap">Spacing from player</string>
+    <string name="pref_lyrics_lead_ms">Lyrics lead time</string>
+    <string name="pref_lyrics_shadow">Enhance lyrics shadow</string>
+    <string name="pref_lyrics_shadow_summary">Adaptive shadow or glow based on text brightness, significantly improving readability on complex wallpapers</string>
+    <string name="pref_lyrics_hide_on_notification">Auto hide on notification</string>
+    <string name="pref_lyrics_hide_on_notification_summary">Automatically hide floating lyrics when receiving lockscreen notifications to avoid overlap; restores when cleared</string>
+
+    <!-- Shortcut Buttons -->
+    <string name="group_shortcut_bg">Shortcut Buttons</string>
+    <string name="pref_shortcut_bg">Lockscreen shortcut background</string>
+    <string name="shortcut_bg_mode_none">Do not show</string>
+    <string name="shortcut_bg_mode_pure">Solid color</string>
+    <string name="shortcut_bg_mode_advanced">Advanced material</string>
+    <string name="shortcut_bg_mode_soft_glass">Soft glass</string>
+    <string name="pref_shortcut_icon_color">Shortcut icon color</string>
+    <string name="pref_shortcut_glass_radius">Circle radius</string>
+    <string name="pref_shortcut_bg_corner_radius">Background corner radius</string>
+    <string name="pref_shortcut_spacing">Shortcut button spacing</string>
+    <string name="pref_shortcut_icon_size">Shortcut icon size</string>
+
+    <!-- Restore Defaults Dialog -->
+    <string name="dialog_restore_defaults_title">Restore Defaults</string>
+    <string name="dialog_restore_defaults_desc">Are you sure you want to restore all lockscreen customization parameters to recommended defaults? System settings and verbose logging will be kept.</string>
+    <string name="toast_defaults_restored">Lockscreen default settings restored</string>
+
+    <!-- Material Parameters -->
+    <string name="mat_bg_color">Background color</string>
+    <string name="mat_opacity">Opacity</string>
+    <string name="mat_bg_blur">Background blur</string>
+    <string name="mat_highlight">Show highlight</string>
+    <string name="mat_blend_color">Blend color</string>
+    <string name="mat_glass_blur">Glass blur</string>
+    <string name="mat_luminance">Soft luminance</string>
+
+    <string name="mat_player_bg_color">Player background color</string>
+    <string name="mat_player_opacity">Player opacity</string>
+    <string name="mat_player_blend_color">Player blend color</string>
+    <string name="mat_player_bg_blur">Player background blur</string>
+    <string name="mat_player_highlight">Player show highlight</string>
+    <string name="mat_player_glass_blur">Player glass blur</string>
+    <string name="mat_player_luminance">Player soft luminance</string>
+
+    <!-- Color Dialog &amp; Value Input -->
+    <string name="dialog_choose_color">Choose Background Color</string>
+    <string name="dialog_custom_value_prefix">Custom %1$s</string>
+    <string name="dialog_valid_range">Valid range: %1$s</string>
+    <string name="dialog_default_recommended">Default: %1$s</string>
+    <string name="dialog_fill_default">Use default</string>
+    <string name="dialog_input_value_label">Enter value</string>
+    <string name="dialog_input_value_with_unit_label">Enter value (%1$s)</string>
+    <string name="pref_custom_dim_prefix">Customize %1$s</string>
+
+    <!-- About &amp; Open Source -->
+    <string name="about_app_desc">A lightweight module for customizing Xiaomi HyperOS lockscreen and AOD (HyperLock).</string>
+    <string name="about_group_open_source">Open Source &amp; Thanks</string>
+    <string name="about_item_repo">Source Repository</string>
+    <string name="about_item_upstream">Upstream Project</string>
+    <string name="about_item_upstream_summary">Derived from github.com/ColdP/HyperChanger</string>
+    <string name="about_item_ui_lib">UI Components</string>
+    <string name="about_item_ui_lib_summary">HyperOS-style controls based on MIUIX</string>
+    <string name="about_item_licenses">Open Source Licenses</string>
+    <string name="about_item_licenses_summary">Third-party components, attribution, and license texts</string>
+    <string name="about_disclaimer_title">Disclaimer</string>
+    <string name="about_disclaimer_text">This module is an independent third-party project and is not affiliated with, authorized by, or endorsed by Xiaomi Inc.\nIt modifies internal implementations of System UI and AOD via LSPosed, and only takes effect within checked scopes. Behavior may vary across devices and OS versions; evaluate risks for unverified builds.\nRooting, unlocking, LSPosed, and installing this module are performed at your own risk.</string>
+
+    <string name="open_source_intro">HyperLock uses the following open-source projects. Thanks to all authors and contributors.</string>
+    <string name="open_source_projects_title">Open Source Projects Used</string>
+    <string name="open_proj_miuix_desc">HyperOS-style UI, preferences, icons, and blur effects</string>
+    <string name="open_proj_backdrop_desc">Real-time background blur rendering based on RuntimeShader</string>
+    <string name="open_proj_shapes_desc">Compose vector shapes and interpolation utilities</string>
+    <string name="open_proj_lyricon_desc">Lockscreen mini player lyrics subscription and parsing component</string>
+    <string name="open_proj_libxposed_desc">Xposed module API and runtime service</string>
+    <string name="open_proj_androidx_desc">core-ktx, activity-compose, lifecycle-runtime-compose, material-icons-extended</string>
+    <string name="open_proj_compose_desc">ui, foundation, animation</string>
+    <string name="open_proj_hyperchanger_desc">Upstream project: Code and UI foundation</string>
+
+    <string name="open_source_license_info">License Information</string>
+    <string name="open_source_license_text_title">Apache License 2.0 Full Text</string>
+    <string name="open_source_third_party_title">Complete Third-Party List</string>
+    <string name="open_source_third_party_summary">Includes transitive dependencies and versions</string>
+    <string name="open_source_upstream_notice_title">Upstream Attribution &amp; MIT Notice</string>
 </resources>

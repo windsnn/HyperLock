@@ -1,8 +1,11 @@
 package io.github.windsnn.hyperlock.ui
 
+import android.app.LocaleManager
+import android.os.LocaleList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -13,6 +16,7 @@ import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.preference.*
 import top.yukonga.miuix.kmp.theme.*
 import io.github.windsnn.hyperlock.HyperLog
+import io.github.windsnn.hyperlock.R
 import io.github.windsnn.hyperlock.ScopeApplication
 import io.github.windsnn.hyperlock.SystemUiRestarter
 import io.github.windsnn.hyperlock.checkDeviceCompat
@@ -26,28 +30,68 @@ internal fun SettingsHome(
     online: Boolean,
     update: ((HookSettings) -> HookSettings) -> Unit,
     open: (PageId) -> Unit,
-) = AppPage("设置") { padding, scroll ->
+) = AppPage(stringResource(R.string.page_settings)) { padding, scroll ->
     val context = LocalContext.current
     var showScopeRestartDialog by remember { mutableStateOf(false) }
     val compat = remember(context) { checkDeviceCompat(context) }
+    val localeManager = remember(context) { context.getSystemService(LocaleManager::class.java) }
+    val currentAppLocales = localeManager?.applicationLocales
+    var selectedLanguageIndex by remember(currentAppLocales) {
+        mutableIntStateOf(
+            if (currentAppLocales == null || currentAppLocales.isEmpty) {
+                0
+            } else {
+                when (currentAppLocales[0].language) {
+                    "zh" -> 1
+                    "en" -> 2
+                    else -> 0
+                }
+            }
+        )
+    }
+
     AppList(padding, scroll, 88) {
         item { ServiceCard(online) }
         item { DeviceCompatCard(compat) }
         item {
-            Group("应用设置") {
+            Group(stringResource(R.string.group_app_settings)) {
                 ArrowPreference(
-                    title = "重启作用域应用",
+                    title = stringResource(R.string.pref_restart_scopes),
                     onClick = { showScopeRestartDialog = true },
                 )
                 OverlayDropdownPreference(
-                    title = "主题模式",
-                    items = listOf("跟随系统", "浅色模式", "深色模式"),
+                    title = stringResource(R.string.pref_language),
+                    items = listOf(
+                        stringResource(R.string.language_system),
+                        stringResource(R.string.language_zh_cn),
+                        stringResource(R.string.language_en),
+                    ),
+                    selectedIndex = selectedLanguageIndex,
+                    onSelectedIndexChange = { index ->
+                        if (index != selectedLanguageIndex) {
+                            selectedLanguageIndex = index
+                            val targetLocales = when (index) {
+                                1 -> LocaleList.forLanguageTags("zh-CN")
+                                2 -> LocaleList.forLanguageTags("en")
+                                else -> LocaleList.getEmptyLocaleList()
+                            }
+                            localeManager?.applicationLocales = targetLocales
+                        }
+                    },
+                )
+                OverlayDropdownPreference(
+                    title = stringResource(R.string.pref_theme_mode),
+                    items = listOf(
+                        stringResource(R.string.theme_mode_system),
+                        stringResource(R.string.theme_mode_light),
+                        stringResource(R.string.theme_mode_dark),
+                    ),
                     selectedIndex = listOf("system", "light", "dark").indexOf(settings.themeMode).coerceAtLeast(0),
                     onSelectedIndexChange = { i -> update { it.copy(themeMode = listOf("system", "light", "dark")[i]) } },
                 )
                 SwitchPreference(
-                    title = "详细日志",
-                    summary = "捕获运行状态与排查日志，默认关闭仅记录异常",
+                    title = stringResource(R.string.pref_verbose_log),
+                    summary = stringResource(R.string.pref_verbose_log_summary),
                     checked = settings.verboseLog,
                     onCheckedChange = { v ->
                         HyperLog.isVerbose = v
@@ -57,8 +101,8 @@ internal fun SettingsHome(
             }
         }
         item {
-            Group("应用信息") {
-                ArrowPreference(title = "关于", onClick = { open(PageId.ABOUT) })
+            Group(stringResource(R.string.group_app_info)) {
+                ArrowPreference(title = stringResource(R.string.pref_about), onClick = { open(PageId.ABOUT) })
             }
         }
     }
@@ -88,14 +132,14 @@ internal fun RestartScopeDialog(
     ) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                "重启作用域应用",
+                stringResource(R.string.dialog_restart_scope_title),
                 modifier = Modifier.fillMaxWidth(),
                 style = MiuixTheme.textStyles.title3,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Start,
             )
             Text(
-                "选择需要重启的应用",
+                stringResource(R.string.dialog_restart_scope_subtitle),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -111,13 +155,13 @@ internal fun RestartScopeDialog(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Button(onDismiss, Modifier.weight(1f)) { Text("取消") }
+                Button(onDismiss, Modifier.weight(1f)) { Text(stringResource(R.string.action_cancel)) }
                 Button(
                     onClick = { onRestart(selectedTargets) },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColorsPrimary(),
                     enabled = selectedTargets.isNotEmpty(),
-                ) { Text("重启") }
+                ) { Text(stringResource(R.string.action_restart)) }
             }
         }
     }
@@ -144,7 +188,7 @@ internal fun ScopeRestartCheckboxes(
                 onClick = toggle,
             )
             Text(
-                target.title,
+                stringResource(target.titleRes),
                 style = MiuixTheme.textStyles.body1,
                 modifier = Modifier.padding(start = 10.dp),
             )
