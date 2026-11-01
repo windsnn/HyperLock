@@ -181,7 +181,7 @@
     <string name="pref_custom_dim_prefix">Customize %1$s</string>
 
     <!-- About &amp; Open Source -->
-    <string name="about_app_desc">A lightweight module for customizing Xiaomi HyperOS lockscreen and AOD (HyperLock).</string>
+    <string name="about_app_desc">A lightweight module for customizing Xiaomi HyperOS lockscreen (HyperLock).</string>
     <string name="about_group_open_source">Open Source &amp; Thanks</string>
     <string name="about_item_repo">Source Repository</string>
     <string name="about_item_upstream">Upstream Project</string>
@@ -191,7 +191,7 @@
     <string name="about_item_licenses">Open Source Licenses</string>
     <string name="about_item_licenses_summary">Third-party components, attribution, and license texts</string>
     <string name="about_disclaimer_title">Disclaimer</string>
-    <string name="about_disclaimer_text">This module is an independent third-party project and is not affiliated with, authorized by, or endorsed by Xiaomi Inc.\nIt modifies internal implementations of System UI and AOD via LSPosed, and only takes effect within checked scopes. Behavior may vary across devices and OS versions; evaluate risks for unverified builds.\nRooting, unlocking, LSPosed, and installing this module are performed at your own risk.</string>
+    <string name="about_disclaimer_text">This module is an independent third-party project and is not affiliated with, authorized by, or endorsed by Xiaomi Inc.\nIt modifies internal implementations of System UI and lockscreen editor via LSPosed, and only takes effect within checked scopes. Behavior may vary across devices and OS versions; evaluate risks for unverified builds.\nRooting, unlocking, LSPosed, and installing this module are performed at your own risk.</string>
 
     <string name="open_source_intro">HyperLock uses the following open-source projects. Thanks to all authors and contributors.</string>
     <string name="open_source_projects_title">Open Source Projects Used</string>

@@ -181,7 +181,7 @@
     <string name="pref_custom_dim_prefix">自定义%1$s</string>
 
     <!-- About &amp; Open Source -->
-    <string name="about_app_desc">一个小巧的用于自定义小米澎湃 OS 锁屏与息屏的模块 (HyperLock)。</string>
+    <string name="about_app_desc">一个小巧的用于自定义小米澎湃 OS 锁屏的模块 (HyperLock)。</string>
     <string name="about_group_open_source">开源与致谢</string>
     <string name="about_item_repo">项目仓库</string>
     <string name="about_item_upstream">上游项目</string>
@@ -191,7 +191,7 @@
     <string name="about_item_licenses">开源许可</string>
     <string name="about_item_licenses_summary">第三方组件、署名与许可文本</string>
     <string name="about_disclaimer_title">免责声明</string>
-    <string name="about_disclaimer_text">本模块为个人第三方项目，与小米公司无任何关联，未获其授权或背书。\n它通过 LSPosed 修改系统界面与息屏的内部实现，仅在你勾选的作用域内生效；不同机型与系统版本的表现可能不同，未验证的版本请自行评估风险。\n刷机、Root、LSPosed 与安装本模块的风险由使用者自行承担。</string>
+    <string name="about_disclaimer_text">本模块为个人第三方项目，与小米公司无任何关联，未获其授权或背书。\n它通过 LSPosed 修改系统界面与锁屏编辑的内部实现，仅在你勾选的作用域内生效；不同机型与系统版本的表现可能不同，未验证的版本请自行评估风险。\n刷机、Root、LSPosed 与安装本模块的风险由使用者自行承担。</string>
 
     <string name="open_source_intro">HyperLock 使用了以下开源项目，感谢所有项目作者与贡献者。</string>
     <string name="open_source_projects_title">使用到的开源项目</string>

@@ -4,7 +4,9 @@
 
 <h1 align="center"><strong>HyperLock</strong></h1>
 
-<p align="center">An LSPosed module for Xiaomi HyperOS lock screen and AOD customization.</p>
+<p align="center">
+  A lightweight module for Xiaomi HyperOS 4 lockscreen customization.
+</p>
 
 <p align="center">
   <a href="README_zh.md">中文</a> |
@@ -19,39 +21,51 @@
 
 ---
 
-## Features
+## ✨ Features
 
-- Lock screen mini music player between the two shortcut buttons, following the system media session, with floating lyrics
-- Removes the depth wallpaper restrictions on the lock screen and AOD
-- Removes the notification shelf position limit, cutting the empty space above the fingerprint area
-- Hides the in-display fingerprint icon
-- Blurred background for the PIN numpad
-- Custom background material and icon color for the shortcut buttons
-- Keeps the "Glass" clock material that HyperOS rewrites when it applies OTA presets
-- Control over the bottom texts (charging / do-not-disturb / notification count)
+- 🎵 **Lockscreen Mini Music Player**: Elegantly placed between the bottom shortcut buttons, automatically syncing with the system media session, with Lyricon protocol floating lyrics support.
+- 🖼️ **Bypass Depth Wallpaper Occlusion Limits**: Completely removes the system restriction where depth wallpaper is disabled due to "subject occluding too much of the clock", forcing depth effect even when the clock is heavily covered.
+- 🕒 **Unlock "Glass" Clock Material**: Removes material selection restrictions on lockscreen clocks, allowing "Glass" material on all clock styles and preventing OTA presets from resetting it.
+- 📐 **Notification & Fingerprint Layout**: Eliminates the notification shelf drop position limit, trimming redundant empty space above the fingerprint area; allows hiding the in-display fingerprint icon (lockscreen only or global).
+- 🎨 **Deep Material & Background Customization**: Supports solid color, advanced material, and real-time soft glass effects based on RuntimeShader (Backdrop blur and physical blend color) for shortcut buttons and player; circular frosted-glass background for PIN entry keys.
+- 📝 **Streamlined Bottom Text**: Independently toggle visibility for bottom status text (Charging status / Do Not Disturb / Notification count) for a cleaner lockscreen aesthetic.
+- 🌐 **Full-Featured Internationalization**: Built-in comprehensive Chinese and English localizations with in-app language switching (Follow System / 简体中文 / English), seamlessly integrated with native HyperOS per-app language preferences.
 
-## Requirements
+## 📋 Requirements
 
-- Xiaomi HyperOS 4 (Android 13+)
-- Root and LSPosed
-- Module scopes: System UI (`com.android.systemui`), AOD (`com.miui.aod`)
+- **Target System**: Xiaomi HyperOS 4 (Android 13+)
+- **Prerequisites**: Root access with LSPosed framework installed
+- **Module Scopes**:
+  - **System UI** (`com.android.systemui`): Powers lockscreen player, lyrics, shortcut buttons, notification shelf, and PIN pad
+  - **Lockscreen Editor & AOD** (`com.miui.aod`): Unlocks depth wallpaper and "Glass" clock material on the lockscreen
 
-## About the lyrics
+## 🎶 About Lockscreen Lyrics
 
-Lyrics are not provided by this module. To get lock screen lyrics, install [Lyricon](https://github.com/proify/lyricon) yourself and enable the System UI scope for it in LSPosed; players that do not integrate Lyricon natively also need the matching Provider plugin. Then turn on "Lockscreen lyrics → Show lyrics" in the settings.
+Lyrics are not fetched directly by this module. Instead, it subscribes to the Lyricon protocol for real-time floating lyrics rendering. Setup instructions:
 
-## Build
+1. **Install Lyricon Core**: Download and install [Lyricon Core](https://github.com/tomakino/lyricon/releases/tag/core), activate it in LSPosed, and check the System UI (`com.android.systemui`) scope.
+2. **Player & Plugin Configuration**:
+   - Music players with native Lyricon protocol support broadcast lyrics automatically.
+   - For standard music apps without native Lyricon support, install and configure their respective Provider plugins.
+3. **Enable in HyperLock**: Turn on "Lockscreen lyrics display" in HyperLock settings.
 
-Prebuilt APKs are on the [Releases](https://github.com/windsnn/HyperLock/releases) page. To build it yourself: `./gradlew assembleRelease` (JDK 17 and Android SDK 37+). The `HyperLock CI` workflow can be triggered manually, and pushing a `v*` tag triggers `HyperLock Release` to build and publish a release automatically.
+## 🛠️ Build
 
-## Disclaimer
+Prebuilt APKs are available on the [Releases](https://github.com/windsnn/HyperLock/releases) page.
 
-The code in this project was written by AI and is provided "as is", without any warranty of usability or safety; modified redistributions are not related to this project. Flashing, root and LSPosed operations are at your own risk — you are responsible for any consequences of using this project.
+To build from source:
+- Requirements: JDK 17 + Android SDK 37 or higher
+- Build command: `./gradlew assembleRelease`
+- CI/CD: Automated with GitHub Actions; pushing a `v*` tag automatically builds and publishes a GitHub Release.
 
-This is a personal third-party module, not affiliated with, authorized by, or endorsed by Xiaomi; HyperOS and other names and trademarks belong to their respective owners.
+## ⚠️ Disclaimer
 
-## License
+1. The code in this project was written by AI and is provided "AS IS", without warranties of any kind, express or implied. Modified redistributions by third parties are unrelated to this project.
+2. Flashing, acquiring root access, and utilizing LSPosed modules entail inherent risks. You are solely responsible for evaluating and bearing any consequences arising from use.
+3. This is an independent open-source third-party project and is not affiliated with, authorized by, or endorsed by Xiaomi Inc. Xiaomi, HyperOS, and related trademarks belong to their respective owners.
 
-[Apache License 2.0](LICENSE). Derived from [ColdP/HyperChanger](https://github.com/ColdP/HyperChanger),
-which was licensed under MIT up to v1.0.1. The upstream attribution and the MIT license text are kept in
-[NOTICE](NOTICE) and [THIRD-PARTY.md](THIRD-PARTY.md).
+## 📄 License
+
+This project is licensed under the [Apache License 2.0](LICENSE).
+
+Derived from [ColdP/HyperChanger](https://github.com/ColdP/HyperChanger) (which was licensed under MIT up to v1.0.1). Full upstream attribution, third-party component listings, and license texts are preserved in [NOTICE](NOTICE) and [THIRD-PARTY.md](THIRD-PARTY.md).
