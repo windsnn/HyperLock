@@ -1,6 +1,6 @@
 <resources>
     <!-- App -->
-    <string name="app_name">澎湃锁屏</string>
+    <string name="app_name">HyperLock</string>
 
     <!-- Navigation &amp; Tabs -->
     <string name="tab_lock">锁屏</string>
@@ -193,7 +193,7 @@
     <string name="about_disclaimer_title">免责声明</string>
     <string name="about_disclaimer_text">本模块为个人第三方项目，与小米公司无任何关联，未获其授权或背书。\n它通过 LSPosed 修改系统界面与息屏的内部实现，仅在你勾选的作用域内生效；不同机型与系统版本的表现可能不同，未验证的版本请自行评估风险。\n刷机、Root、LSPosed 与安装本模块的风险由使用者自行承担。</string>
 
-    <string name="open_source_intro">澎湃锁屏 (HyperLock) 使用了以下开源项目，感谢所有项目作者与贡献者。</string>
+    <string name="open_source_intro">HyperLock 使用了以下开源项目，感谢所有项目作者与贡献者。</string>
     <string name="open_source_projects_title">使用到的开源项目</string>
     <string name="open_proj_miuix_desc">HyperOS 风格界面、偏好设置、图标与模糊效果</string>
     <string name="open_proj_backdrop_desc">基于 RuntimeShader 的实时背景模糊渲染组件</string>
