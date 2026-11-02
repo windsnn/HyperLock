@@ -1,11 +1,13 @@
 package io.github.windsnn.hyperlock.hook
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.AnimatorSet
 import android.content.res.ColorStateList
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.graphics.Outline
-import android.os.SystemClock
 import android.util.Log
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
@@ -54,7 +56,9 @@ import io.github.windsnn.hyperlock.settings.SHORTCUT_ICON_COLOR_LIGHT
 import io.github.windsnn.hyperlock.settings.SHORTCUT_ICON_DARK_COLOR
 import io.github.windsnn.hyperlock.settings.SHORTCUT_ICON_LIGHT_COLOR
 import io.github.windsnn.hyperlock.player.LockscreenKeyguardBridge
+import io.github.windsnn.hyperlock.player.LockscreenMiniPlayerController
 import io.github.libxposed.api.XposedInterface.ExceptionMode
+import java.util.Collections
 import java.util.WeakHashMap
 
 internal fun HyperSystemUiModule.installLockscreenShortcutGlassHook(
@@ -318,26 +322,115 @@ internal fun HyperSystemUiModule.installShortcutGlassBackgrounds(
     )
 }
 
+private val hookedShortcutTipsClassLoaders = Collections.synchronizedSet(
+    Collections.newSetFromMap(WeakHashMap<ClassLoader, Boolean>()),
+)
+
+internal fun findMiniPlayerControllerForShortcut(shortcutView: View?): LockscreenMiniPlayerController? {
+    synchronized(lockscreenMiniPlayerControllers) {
+        var current = shortcutView?.parent as? View
+        while (current != null) {
+            lockscreenMiniPlayerControllers[current]?.takeIf { !it.isDestroyed }?.let { return it }
+            current = current.parent as? View
+        }
+        return lockscreenMiniPlayerControllers.values.firstOrNull { !it.isDestroyed }
+    }
+}
+
+/**
+ * 直接 Hook 系统原生 [com.miui.keyguard.shortcuts.controller.ShortcutViewLayoutController] 的提示动画构建与启动，
+ * 在系统按钮弹起动画真正启动/取消的同一帧同步触发或取消迷你播放器挤压形变。
+ */
+internal fun HyperSystemUiModule.ensureShortcutTipsAnimHook(shortcutContainer: ViewGroup): Boolean {
+    val candidates = buildList {
+        shortcutContainer.context?.classLoader?.let(::add)
+        readInstanceField(lastShortcutController, "shortcutPlugin")?.javaClass?.classLoader?.let(::add)
+    }.distinct()
+
+    for (loader in candidates) {
+        if (loader in hookedShortcutTipsClassLoaders) return true
+        val installed = runCatching {
+            val controllerClass = loader.loadClass(SHORTCUT_VIEW_LAYOUT_CONTROLLER_CLASS)
+            val showTipsMethod = controllerClass.declaredMethods.firstOrNull {
+                it.name == "showShortcutTipsAnim" &&
+                    it.parameterCount == 1 &&
+                    it.parameterTypes[0] == Boolean::class.javaPrimitiveType
+            }
+            val getAnimateMethod = controllerClass.declaredMethods.firstOrNull {
+                it.name == "getButtonLayoutAnimate" &&
+                    it.parameterCount == 2 &&
+                    View::class.java.isAssignableFrom(it.parameterTypes[0]) &&
+                    it.parameterTypes[1] == Boolean::class.javaPrimitiveType
+            } ?: return@runCatching false
+
+            val animSetField = runCatching {
+                controllerClass.getDeclaredField("shortViewLayoutAnimatorSet").apply {
+                    isAccessible = true
+                }
+            }.getOrNull()
+
+            if (showTipsMethod != null && animSetField != null) {
+                attachHook(showTipsMethod)
+                    .setExceptionMode(ExceptionMode.PROTECTIVE)
+                    .setId("lockscreen-shortcut-tips-show:${loader.hashCode()}")
+                    .intercept { chain ->
+                        val instance = chain.thisObject
+                        val existing = runCatching { animSetField.get(instance) as? AnimatorSet }.getOrNull()
+                        if (existing != null && !existing.isRunning) {
+                            runCatching { animSetField.set(instance, null) }
+                        }
+                        chain.proceed()
+                    }
+            }
+
+            attachHook(getAnimateMethod)
+                .setExceptionMode(ExceptionMode.PROTECTIVE)
+                .setId("lockscreen-shortcut-tips-anim:${loader.hashCode()}")
+                .intercept { chain ->
+                    val result = chain.proceed()
+                    val animatorSet = result as? AnimatorSet ?: return@intercept result
+                    val targetView = chain.getArg(0) as? View
+                    val isLeft = chain.getArg(1) as? Boolean
+                        ?: (targetView?.idName() != "shortcut_view_right_layout")
+                    animatorSet.addListener(object : AnimatorListenerAdapter() {
+                        override fun onAnimationStart(animation: Animator) {
+                            targetView?.performHapticFeedbackSafely(HapticFeedbackConstants.KEYBOARD_TAP)
+                            findMiniPlayerControllerForShortcut(targetView)
+                                ?.triggerSqueezeBounce(fromRight = !isLeft)
+                        }
+
+                        override fun onAnimationCancel(animation: Animator) {
+                            findMiniPlayerControllerForShortcut(targetView)
+                                ?.cancelSqueezeBounce()
+                        }
+                    })
+                    result
+                }
+            true
+        }.getOrElse { error ->
+            hookLog(Log.WARN, TAG, "Could not hook ShortcutViewLayoutController in $loader", error)
+            false
+        }
+        if (installed) {
+            hookedShortcutTipsClassLoaders += loader
+            return true
+        }
+    }
+    return false
+}
+
 internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: ViewGroup) {
+    ensureShortcutTipsAnimHook(shortcutContainer)
     if (shortcutContainer in bounceBoundContainers) return
     bounceBoundContainers += shortcutContainer
     val isRight = shortcutContainer.idName() == "shortcut_view_right_layout"
     val touchSlop = ViewConfiguration.get(shortcutContainer.context).scaledTouchSlop
     var downX = 0f
     var downY = 0f
-    var downTime = 0L
     var isSliding = false
     var isTouchDownHandled = false
-    var lastClickTime = 0L
-    // 与系统原生快捷键点击提示动画总时长 (600ms) 严格同步
-    val systemAnimDurationMs = 600L
 
-    val getController = {
-        synchronized(lockscreenMiniPlayerControllers) {
-            (shortcutContainer.parent as? View)?.let { lockscreenMiniPlayerControllers[it] }
-                ?: lockscreenMiniPlayerControllers.values.firstOrNull()
-        }
-    }
+    val getController = { findMiniPlayerControllerForShortcut(shortcutContainer) }
 
     val findTargetChild = {
         (0 until shortcutContainer.childCount)
@@ -381,20 +474,10 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
     }
 
     val onTouchListener = View.OnTouchListener { _, event ->
-        val now = SystemClock.uptimeMillis()
-        val isSystemAnimRunning = now - lastClickTime < systemAnimDurationMs
-
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                // 系统 600ms 提示动画播放期间忽略重复点击与震动
-                if (isSystemAnimRunning) {
-                    isTouchDownHandled = false
-                    return@OnTouchListener false
-                }
-
                 downX = event.rawX
                 downY = event.rawY
-                downTime = event.downTime
                 isSliding = false
                 isTouchDownHandled = true
 
@@ -409,7 +492,7 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
                     .start()
             }
             MotionEvent.ACTION_MOVE -> {
-                if (!isTouchDownHandled || isSystemAnimRunning) {
+                if (!isTouchDownHandled) {
                     return@OnTouchListener false
                 }
                 val dx = event.rawX - downX
@@ -423,12 +506,13 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
                         .setDuration(160L)
                         .setInterpolator(DecelerateInterpolator())
                         .start()
-                    getController()?.cancelSqueezeBounce()
+                    if (!ensureShortcutTipsAnimHook(shortcutContainer)) {
+                        getController()?.cancelSqueezeBounce()
+                    }
                 }
             }
             MotionEvent.ACTION_UP -> {
-                if (!isTouchDownHandled || isSystemAnimRunning) {
-                    isTouchDownHandled = false
+                if (!isTouchDownHandled) {
                     return@OnTouchListener false
                 }
                 isTouchDownHandled = false
@@ -444,8 +528,9 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
                         .setInterpolator(OvershootInterpolator(1.35f))
                         .start()
 
-                    if (Math.hypot(dx.toDouble(), dy.toDouble()) <= touchSlop) {
-                        lastClickTime = now
+                    if (!ensureShortcutTipsAnimHook(shortcutContainer) &&
+                        Math.hypot(dx.toDouble(), dy.toDouble()) <= touchSlop
+                    ) {
                         shortcutContainer.performHapticFeedbackSafely(HapticFeedbackConstants.KEYBOARD_TAP)
                         getController()?.triggerSqueezeBounce(fromRight = isRight)
                     }
@@ -453,8 +538,7 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
                 isSliding = false
             }
             MotionEvent.ACTION_CANCEL -> {
-                if (!isTouchDownHandled || isSystemAnimRunning) {
-                    isTouchDownHandled = false
+                if (!isTouchDownHandled) {
                     return@OnTouchListener false
                 }
                 isTouchDownHandled = false
@@ -466,7 +550,9 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
                     .setDuration(180L)
                     .setInterpolator(DecelerateInterpolator())
                     .start()
-                getController()?.cancelSqueezeBounce()
+                if (!ensureShortcutTipsAnimHook(shortcutContainer)) {
+                    getController()?.cancelSqueezeBounce()
+                }
             }
         }
         false

@@ -37,8 +37,8 @@ try:
 except (AttributeError, ValueError):  # 非标准输出流时忽略
     pass
 
-# com.miui.keyguard.editor.* 位于息屏与锁屏编辑应用，其余目标都在 SystemUI。
-AOD_PREFIXES = ("com.miui.keyguard.editor.",)
+# com.miui.keyguard.editor.* 与 com.miui.keyguard.shortcuts.* 位于息屏与锁屏编辑应用（含内嵌插件 APK），其余目标都在 SystemUI。
+AOD_PREFIXES = ("com.miui.keyguard.editor.", "com.miui.keyguard.shortcuts.")
 
 # 框架类不在 SystemUI / AOD 的 dex 里，需要 framework.jar 才能校验。
 FRAMEWORK_PREFIXES = ("android.", "androidx.")
@@ -122,6 +122,7 @@ def dex_strings(dex: bytes) -> set[str]:
 
 
 def apk_strings(apk: Path) -> tuple[set[str], list[str]]:
+    import io
     strings: set[str] = set()
     dex_names: list[str] = []
     with zipfile.ZipFile(apk) as archive:
@@ -129,6 +130,12 @@ def apk_strings(apk: Path) -> tuple[set[str], list[str]]:
             if re.fullmatch(r"classes\d*\.dex", name):
                 dex_names.append(name)
                 strings |= dex_strings(archive.read(name))
+            elif name.endswith(".apk"):
+                with zipfile.ZipFile(io.BytesIO(archive.read(name))) as nested:
+                    for nested_name in nested.namelist():
+                        if re.fullmatch(r"classes\d*\.dex", nested_name):
+                            dex_names.append(f"{name}!{nested_name}")
+                            strings |= dex_strings(nested.read(nested_name))
     return strings, dex_names
 
 

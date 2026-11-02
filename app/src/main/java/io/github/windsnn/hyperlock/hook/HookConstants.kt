@@ -64,6 +64,8 @@ internal const val NUM_STATE_VIEW_ANIMATE_EXT_CLASS =
     "com.miui.systemui.notification.ext.NumStateViewAnimateExt"
 internal const val MIUI_SHORTCUT_CONTROLLER_CLASS =
     "com.android.keyguard.shortcut.MiuiShortcutController"
+internal const val SHORTCUT_VIEW_LAYOUT_CONTROLLER_CLASS =
+    "com.miui.keyguard.shortcuts.controller.ShortcutViewLayoutController"
 internal const val KEYGUARD_PIN_VIEW_CLASS = "com.android.keyguard.KeyguardPINView"
 internal val LOCKSCREEN_PIN_KEY_IDS = setOf(
     "key0", "key1", "key2", "key3", "key4",
