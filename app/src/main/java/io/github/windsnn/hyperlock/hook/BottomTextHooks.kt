@@ -60,14 +60,54 @@ internal fun HyperSystemUiModule.installLockscreenBottomTextViewHook(
             hookLog(Log.DEBUG, TAG, "NotificationNumStateView has no known refresh methods")
             return@runCatching
         }
+        val zenViewField = runCatching {
+            stateClass.getDeclaredField("zenView").apply { isAccessible = true }
+        }.getOrNull()
+        val countViewField = runCatching {
+            stateClass.getDeclaredField("notificationCountView").apply { isAccessible = true }
+        }.getOrNull()
+        val dividerField = runCatching {
+            stateClass.getDeclaredField("dividingLine").apply { isAccessible = true }
+        }.getOrNull()
+
         refreshMethods.forEachIndexed { index, method ->
             attachHook(method)
                 .setExceptionMode(ExceptionMode.PROTECTIVE)
                 .setId("lockscreen-bottom-text-view-$index")
                 .intercept { chain ->
                     val result = chain.proceed()
-                    applyLockscreenBottomTextVisibility(chain.thisObject, preferences, stateClass)
+                    applyLockscreenBottomTextVisibility(
+                        target = chain.thisObject,
+                        preferences = preferences,
+                        zenViewField = zenViewField,
+                        countViewField = countViewField,
+                        dividerField = dividerField,
+                    )
                     result
+                }
+        }
+        // 当勿扰与通知计数同时开启隐藏时，若其中一方原本处于显示状态，将容器整体置为不可见并令 getLayoutHeight 返回 0，彻底消除底部残留占位
+        runCatching {
+            val getLayoutHeight = stateClass.getMethod("getLayoutHeight")
+            attachHook(getLayoutHeight)
+                .setExceptionMode(ExceptionMode.PROTECTIVE)
+                .setId("lockscreen-bottom-text-layout-height")
+                .intercept { chain ->
+                    val owner = chain.thisObject ?: return@intercept chain.proceed()
+                    val mask = preferences.getInt(KEY_LOCKSCREEN_BOTTOM_TEXT_MASK, 0)
+                    val hideDnd = mask and LOCKSCREEN_TEXT_DND != 0
+                    val hideNotif = mask and LOCKSCREEN_TEXT_NOTIFICATIONS != 0
+                    if (hideDnd && hideNotif) {
+                        0
+                    } else {
+                        val zenVisible = (zenViewField?.get(owner) as? View)?.visibility == View.VISIBLE && !hideDnd
+                        val countVisible = (countViewField?.get(owner) as? View)?.visibility == View.VISIBLE && !hideNotif
+                        if (!zenVisible && !countVisible && (hideDnd || hideNotif)) {
+                            0
+                        } else {
+                            chain.proceed()
+                        }
+                    }
                 }
         }
         // 拦截更新后的可见性动画，防止隐藏控件被动画完成回调重置为可见
@@ -81,17 +121,18 @@ internal fun HyperSystemUiModule.installLockscreenBottomTextViewHook(
                         .setId("lockscreen-bottom-text-animation-$index")
                         .intercept { chain ->
                             val view = chain.getArg(0) as? View
-                            val owner = generateSequence(view?.parent) { it.parent }
-                                .firstOrNull { it.javaClass.name == NOTIFICATION_NUM_STATE_VIEW_CLASS }
                             val mask = preferences.getInt(KEY_LOCKSCREEN_BOTTOM_TEXT_MASK, 0)
-                            val ownerView = owner as? ViewGroup
-                            val countView = ownerView?.let { readViewField(it, "notificationCountView") }
-                            val zenView = ownerView?.let { readViewField(it, "zenView") }
-                            val divider = ownerView?.let { readViewField(it, "dividingLine") }
+                            if (view == null || mask == 0) return@intercept chain.proceed()
+                            val owner = generateSequence(view.parent) { it.parent }
+                                .firstOrNull(stateClass::isInstance)
+                                ?: return@intercept chain.proceed()
+                            val countView = countViewField?.get(owner) as? View
+                            val zenView = zenViewField?.get(owner) as? View
+                            val divider = dividerField?.get(owner) as? View
                             val hide = (mask and LOCKSCREEN_TEXT_NOTIFICATIONS != 0 && view === countView) ||
                                 (mask and LOCKSCREEN_TEXT_DND != 0 && view === zenView) ||
                                 (mask and (LOCKSCREEN_TEXT_DND or LOCKSCREEN_TEXT_NOTIFICATIONS) != 0 && view === divider)
-                            if (hide && view != null) {
+                            if (hide) {
                                 view.visibility = View.GONE
                                 view.alpha = 0f
                                 if (view === countView) {
@@ -113,28 +154,20 @@ internal fun HyperSystemUiModule.installLockscreenBottomTextViewHook(
 }
 
 internal fun HyperSystemUiModule.applyLockscreenBottomTextVisibility(
-    target: Any,
+    target: Any?,
     preferences: SharedPreferences,
-    targetClass: Class<*>,
+    zenViewField: java.lang.reflect.Field?,
+    countViewField: java.lang.reflect.Field?,
+    dividerField: java.lang.reflect.Field?,
 ) {
+    val owner = target ?: return
     val mask = preferences.getInt(KEY_LOCKSCREEN_BOTTOM_TEXT_MASK, 0)
     if (mask == 0) return
-    fun fieldValue(name: String): Any? {
-        var type: Class<*>? = targetClass
-        while (type != null) {
-            val value = runCatching {
-                type.getDeclaredField(name).apply { isAccessible = true }.get(target)
-            }.getOrNull()
-            if (value != null) return value
-            type = type.superclass
-        }
-        return null
-    }
     if (mask and LOCKSCREEN_TEXT_DND != 0) {
-        (fieldValue("zenView") as? View)?.visibility = View.GONE
+        (zenViewField?.get(owner) as? View)?.visibility = View.GONE
     }
     if (mask and LOCKSCREEN_TEXT_NOTIFICATIONS != 0) {
-        (fieldValue("notificationCountView") as? TextView)?.let {
+        (countViewField?.get(owner) as? TextView)?.let {
             it.text = ""
             it.contentDescription = ""
             it.visibility = View.GONE
@@ -142,18 +175,6 @@ internal fun HyperSystemUiModule.applyLockscreenBottomTextVisibility(
         }
     }
     if (mask and (LOCKSCREEN_TEXT_DND or LOCKSCREEN_TEXT_NOTIFICATIONS) != 0) {
-        (fieldValue("dividingLine") as? View)?.visibility = View.GONE
+        (dividerField?.get(owner) as? View)?.visibility = View.GONE
     }
-}
-
-internal fun HyperSystemUiModule.readViewField(target: Any, name: String): View? {
-    var type: Class<*>? = target.javaClass
-    while (type != null) {
-        val value = runCatching {
-            type.getDeclaredField(name).apply { isAccessible = true }.get(target)
-        }.getOrNull()
-        if (value is View) return value
-        type = type.superclass
-    }
-    return null
 }

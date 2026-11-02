@@ -232,7 +232,7 @@ internal fun HyperSystemUiModule.installLockscreenPinCircleBackgrounds(
                 }
             }
             // 仅通过弱引用持有 View，避免泄漏
-            val keyRef = WeakReference(key)
+            val keyRef = WeakReference(keyGroup)
             val materialRef = WeakReference(material)
             // 仅在真实尺寸变更时触发重新布局
             val layoutListener = object : View.OnLayoutChangeListener {
@@ -262,7 +262,7 @@ internal fun HyperSystemUiModule.installLockscreenPinCircleBackgrounds(
                         // 跳过功能已关闭后的遗留任务
                         if (lockscreenPinKeyStates[currentTarget]?.layoutListener !== self) return@post
                         placeMaterial(currentTarget, layer)
-                        (currentTarget as? ViewGroup)?.let { configureLockscreenPinLabels(it) }
+                        configureLockscreenPinLabels(currentTarget)
                     }
                 }
             }
@@ -336,8 +336,24 @@ internal fun HyperSystemUiModule.removeLockscreenPinCircleBackgrounds(root: View
 
 internal fun HyperSystemUiModule.lockscreenPinKeys(root: View): List<View> {
     val keys = ArrayList<View>(10)
+    val res = root.resources
+    val pkg = root.context.packageName
+    val keyIds = IntArray(LOCKSCREEN_PIN_KEY_IDS.size)
+    var count = 0
+    for (name in LOCKSCREEN_PIN_KEY_IDS) {
+        val id = res.getIdentifier(name, "id", pkg)
+        if (id != 0) keyIds[count++] = id
+    }
     fun visit(view: View) {
-        if (view.idName() in LOCKSCREEN_PIN_KEY_IDS) keys += view
+        val vid = view.id
+        if (vid != View.NO_ID) {
+            for (i in 0 until count) {
+                if (keyIds[i] == vid) {
+                    keys += view
+                    break
+                }
+            }
+        }
         if (view is ViewGroup) {
             for (index in 0 until view.childCount) visit(view.getChildAt(index))
         }
@@ -348,23 +364,32 @@ internal fun HyperSystemUiModule.lockscreenPinKeys(root: View): List<View> {
 
 internal fun HyperSystemUiModule.configureLockscreenPinLabels(key: ViewGroup) {
     val density = key.resources.displayMetrics.density
-    val keyId = key.idName().orEmpty()
-    var digitTextView: TextView? = null
-    var klondikeTextView: TextView? = null
+    val res = key.resources
+    val pkg = key.context.packageName
+    val key1Id = res.getIdentifier("key1", "id", pkg)
+    val key0Id = res.getIdentifier("key0", "id", pkg)
 
-    fun visit(view: View) {
-        if (view is TextView) {
-            if (view.idName() == "digit_text") {
-                digitTextView = view
-            } else if (view.idName() == "klondike_text") {
-                klondikeTextView = view
+    // 优先直接读取 NumPadKey 的 mDigitText / mKlondikeText 字段，避免每次递归遍历调用 getResourceEntryName
+    var digitTextView: TextView? = readInstanceField(key, "mDigitText") as? TextView
+    var klondikeTextView: TextView? = readInstanceField(key, "mKlondikeText") as? TextView
+
+    if (digitTextView == null || klondikeTextView == null) {
+        val digitId = res.getIdentifier("digit_text", "id", pkg)
+        val klondikeId = res.getIdentifier("klondike_text", "id", pkg)
+        fun visit(view: View) {
+            if (view is TextView) {
+                if (digitId != 0 && view.id == digitId) {
+                    digitTextView = view
+                } else if (klondikeId != 0 && view.id == klondikeId) {
+                    klondikeTextView = view
+                }
+            }
+            if (view is ViewGroup) {
+                for (index in 0 until view.childCount) visit(view.getChildAt(index))
             }
         }
-        if (view is ViewGroup) {
-            for (index in 0 until view.childCount) visit(view.getChildAt(index))
-        }
+        visit(key)
     }
-    visit(key)
 
     // 首次修改前捕获快照，用于功能关闭时还原原生标签
     if (!lockscreenPinLabelSnapshots.containsKey(key)) {
@@ -373,8 +398,8 @@ internal fun HyperSystemUiModule.configureLockscreenPinLabels(key: ViewGroup) {
     }
 
     val digitText = digitTextView?.text?.toString().orEmpty()
-    val isKey1 = keyId == "key1" || digitText == "1"
-    val isKey0 = keyId == "key0" || digitText == "0"
+    val isKey1 = (key1Id != 0 && key.id == key1Id) || digitText == "1"
+    val isKey0 = (key0Id != 0 && key.id == key0Id) || digitText == "0"
 
     val circleCenterX = key.width / 2f
     val circleCenterY = key.height / 2f
@@ -477,20 +502,16 @@ internal fun TextView.leftAlignedTextOffset(maxOffset: Float): Float {
 }
 
 internal fun HyperSystemUiModule.applyLockscreenPinRowSpacing(root: View, spacingDp: Float) {
-    val rows = LinkedHashMap<String, View>(4)
-    fun visit(view: View) {
-        view.idName()?.takeIf { it in LOCKSCREEN_PIN_ROW_IDS }?.let { rows[it] = view }
-        if (view is ViewGroup) {
-            for (index in 0 until view.childCount) visit(view.getChildAt(index))
-        }
-    }
-    visit(root)
+    val res = root.resources
+    val pkg = root.context.packageName
     val spacingPx = (
         spacingDp.coerceIn(PIN_ROW_SPACING_MIN, PIN_ROW_SPACING_MAX) *
-            root.resources.displayMetrics.density
+            res.displayMetrics.density
         ).roundToInt().toFloat()
-    LOCKSCREEN_PIN_ROW_IDS.forEachIndexed { index, id ->
+    LOCKSCREEN_PIN_ROW_IDS.forEachIndexed { index, idName ->
+        val rowId = res.getIdentifier(idName, "id", pkg)
+        val rowView = if (rowId != 0) root.findViewById<View>(rowId) else null
         // 固定第 4 行，正间距向上展开避开指纹区域
-        rows[id]?.translationY = -spacingPx * (LOCKSCREEN_PIN_ROW_IDS.lastIndex - index)
+        rowView?.translationY = -spacingPx * (LOCKSCREEN_PIN_ROW_IDS.lastIndex - index)
     }
 }

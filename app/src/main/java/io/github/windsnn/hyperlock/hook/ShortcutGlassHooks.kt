@@ -867,26 +867,13 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(
             .firstOrNull { it.tag == SHORTCUT_GLASS_TAG }
     }
 
-    // preDraw 监听器成对管理：使用捕获的 Window 级 ViewTreeObserver 移除，避免 detach 后取得空 observer 导致泄漏
-    val preDrawBindings = ArrayList<Triple<View, ViewTreeObserver, ViewTreeObserver.OnPreDrawListener>>()
+    // 监听目标图标的位移变化，避免使用每帧触发的 OnPreDrawListener 造成锁屏空闲重绘开销
     val bindGlassFollow: (View) -> Unit = { target ->
-        val observer = target.viewTreeObserver
-        val listener = ViewTreeObserver.OnPreDrawListener {
-            val glass = findGlassBg()
-            if (glass != null && glass.isAttachedToWindow) {
-                glass.translationX = target.translationX
-                glass.translationY = target.translationY
-            }
-            true
+        val glass = findGlassBg()
+        if (glass != null) {
+            glass.translationX = target.translationX
+            glass.translationY = target.translationY
         }
-        observer.addOnPreDrawListener(listener)
-        preDrawBindings += Triple(target, observer, listener)
-    }
-    val unbindGlassFollow: () -> Unit = {
-        preDrawBindings.forEach { (_, observer, listener) ->
-            runCatching { observer.removeOnPreDrawListener(listener) }
-        }
-        preDrawBindings.clear()
     }
     findTargetChild().let {
         if (it !== shortcutContainer) bindGlassFollow(it)
@@ -995,29 +982,7 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(
                 }
             }
         }
-        override fun onChildViewRemoved(parent: View?, child: View?) {
-            if (child == null) return
-            val iterator = preDrawBindings.iterator()
-            while (iterator.hasNext()) {
-                val (target, observer, listener) = iterator.next()
-                if (target === child) {
-                    runCatching { observer.removeOnPreDrawListener(listener) }
-                    iterator.remove()
-                }
-            }
-        }
-    })
-    shortcutContainer.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
-        override fun onViewAttachedToWindow(v: View) {
-            // 重新挂载后恢复绑定目标图标的 preDraw 监听
-            if (preDrawBindings.isEmpty()) {
-                findTargetChild().let { if (it !== shortcutContainer) bindGlassFollow(it) }
-            }
-        }
-
-        override fun onViewDetachedFromWindow(v: View) {
-            unbindGlassFollow()
-        }
+        override fun onChildViewRemoved(parent: View?, child: View?) = Unit
     })
 }
 
@@ -1228,10 +1193,8 @@ internal fun HyperSystemUiModule.applyShortcutIconColorMode(container: ViewGroup
         }
     }
     listener.mode = mode
-    // addShortcutViews 返回后系统可能延后挂载子视图，延迟刷新图标着色
+    // 子视图挂载已由 ShortcutIconColorListener (OnHierarchyChangeListener) 实时捕获，仅保留单次 post 兜底
     container.post { applyShortcutIconColor(container, mode) }
-    container.postDelayed({ applyShortcutIconColor(container, mode) }, 300L)
-    container.postDelayed({ applyShortcutIconColor(container, mode) }, 1000L)
 }
 
 private var shortcutColorListenerRegistered = false
