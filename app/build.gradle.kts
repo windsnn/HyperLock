@@ -56,11 +56,11 @@ val versionParts = tagVersion?.let { listOf(it.groupValues[1], it.groupValues[2]
 val appVersionName = if (versionParts != null) {
     releaseTag?.removePrefix("v") ?: versionParts.joinToString(".")
 } else {
-    "1.2.0"
+    "1.3.0"
 }
 val appVersionCode = versionParts?.let { (major, minor, patch) ->
     major.toInt() * 10000 + minor.toInt() * 100 + patch.toInt()
-} ?: 10200
+} ?: 10300
 
 logger.lifecycle("HyperLock: versionName=$appVersionName, versionCode=$appVersionCode, tag=${releaseTag ?: "无"}")
 
