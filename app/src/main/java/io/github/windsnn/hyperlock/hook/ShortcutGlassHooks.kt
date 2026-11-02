@@ -436,7 +436,6 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
                 if (isSystemAnimRunning) {
                     return@OnTouchListener false
                 }
-                val duration = event.eventTime - downTime
                 val dx = event.rawX - downX
                 val dy = event.rawY - downY
 
@@ -449,7 +448,7 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
                         .setInterpolator(OvershootInterpolator(1.35f))
                         .start()
 
-                    if (Math.hypot(dx.toDouble(), dy.toDouble()) <= touchSlop && duration < 500L) {
+                    if (Math.hypot(dx.toDouble(), dy.toDouble()) <= touchSlop) {
                         lastClickTime = now
                         getController()?.triggerSqueezeBounce(fromRight = isRight)
                     }
