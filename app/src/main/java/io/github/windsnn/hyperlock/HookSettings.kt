@@ -18,7 +18,7 @@ data class HookSettings(
     val removeDepthImageLimit: Boolean = false,
     val notificationFodPositionLimitRemoved: Boolean = false,
     val fingerprintHideMode: Int = 0,
-    /** Bit mask: charging=1, do-not-disturb=2, notification count=4. */
+    /** 掩码定义：充电=1, 勿扰=2, 通知数=4 */
     val lockscreenBottomTextMask: Int = 0,
     val lockscreenPinCircleBackgroundEnabled: Boolean = false,
     val lockscreenPinCircleRowSpacing: Float = 0f,

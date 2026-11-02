@@ -17,7 +17,7 @@ import io.github.proify.lyricon.subscriber.ProviderInfo
 
 private const val TAG = "MiniPlayerLyrics"
 
-/** UI 进度刷新最小间隔（毫秒）：词幕订阅端按 16ms 轮询播放位置，设为 33ms（约 30fps）既丝滑又省电。 */
+/** UI 进度刷新最小节流间隔（毫秒，约 30fps），平衡渲染流畅度与主线程开销。 */
 private const val PROGRESS_REFRESH_INTERVAL_MS = 33L
 
 private fun findApplicationContext(context: Context): Context {
@@ -83,7 +83,7 @@ internal class LyriconLockscreenSubscriber(
         override fun onDisconnected(subscriber: LyriconSubscriber) {
             HyperLog.i(TAG, "Lyricon subscriber disconnected")
             handler.post {
-                // 中心服务断开后不会再有推送，继续留着上一首歌的文本只会让锁屏显示"卡住的歌词"。
+                // 中心服务断开后清空歌词，避免锁屏残留失效内容
                 if (state.cleared()) onLineChanged()
             }
         }
@@ -200,17 +200,17 @@ internal class LyriconLockscreenSubscriber(
     private fun subscriberInfoLabel(subscriber: LyriconSubscriber): String =
         "(${subscriber.subscriberInfo.packageName}/${subscriber.subscriberInfo.processName})"
 
-    /** 位置回调来自 16ms 轮询线程，状态机与 UI 一律回到主线程。 */
+    /** 位置回调来自 16ms 轮询线程，状态机与 UI 调度回主线程。 */
     private fun applyPosition(position: Long, seek: Boolean) {
-        // 1. 息屏阻断：直接在 16ms 轮询线程判断，灭屏时直接 return，0 次 handler.post，主线程 0 唤醒
+        // 1. 熄屏阻断：子线程直接拦截，避免向主线程投递多余任务
         val isInteractive = powerManager?.isInteractive ?: true
         if (!isInteractive && !seek) return
 
-        // 2. 锁屏/卡片不可见阻断：直接在 16ms 轮询线程检查 volatile isAwake 标记，开屏解锁/未在锁屏展现时直接 return，0 次 handler.post，主线程 0 唤醒
+        // 2. 锁屏未展现阻断：子线程校验 isAwake 标识，阻断无效主线程调度
         if (!isAwake() && !seek) return
 
         handler.post {
-            // 3. 进入主线程后二次防抖校验（防止消息排队期间锁屏刚好退场）
+            // 3. 进入主线程后进行二次有效性校验
             if (!isAwake() && !seek) return@post
 
             when (state.positionChanged(position, seek)) {

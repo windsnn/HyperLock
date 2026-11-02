@@ -68,8 +68,7 @@ internal fun HyperSystemUiModule.installLockscreenMiniPlayer(
     } else {
         null
     }
-    // The plugin may recreate its shortcut content after addShortcutViews returns. Ask the
-    // controller for the actual views rather than relying only on the plugin's layout IDs.
+    // 优先向 Controller 查询快捷键实际 View，避免依赖静态布局 ID
     val controllerShortcuts = resolveLockscreenShortcutViews(shortcutController)
     val (left, right) = controllerShortcuts ?: legacyShortcuts ?: return
     if (left === right) return
@@ -138,9 +137,7 @@ internal fun HyperSystemUiModule.scheduleLockscreenMiniPlayerInstallation(
         }
     }
     install()
-    // 18.2.2.2.0 can finish rebuilding its shortcut content after the controller method
-    // returns. Retry after attachment and after the next layout pass without retaining a
-    // hierarchy listener for the lifetime of SystemUI.
+    // 异步重试以兼容特定版本快捷键内容延迟重建的时序
     root.post(::install)
     root.postDelayed(::install, LOCKSCREEN_SHORTCUT_RETRY_DELAY_MS)
 }
@@ -201,8 +198,7 @@ internal fun HyperSystemUiModule.miniPlayerAppearance(preferences: SharedPrefere
     }
 
 
-    // Mirrors the shortcut renderer exactly: the pure colour's own alpha is ignored and the
-    // "透明度" slider decides the alpha, so both sides stay identical.
+    // 与快捷键渲染保持一致：忽略纯色自带 Alpha，统一由不透明度滑块决定
     fun shortcutAppearance(mode: Int): MiniPlayerAppearance {
         val shortcutPureColor = preferences.getInt(KEY_SHORTCUT_PURE_COLOR, SHORTCUT_PURE_COLOR)
         val shortcutPureOpacity = preferences.getInt(KEY_SHORTCUT_PURE_OPACITY, 45).coerceIn(0, 100)

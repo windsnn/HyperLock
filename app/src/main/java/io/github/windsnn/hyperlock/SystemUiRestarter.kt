@@ -24,8 +24,7 @@ object SystemUiRestarter {
             val failed = buildList {
                 targets.forEach { target ->
                     HyperLog.d("Restarter", "Killing process: ${target.packageName}")
-                    // 锚定整行 cmdline：pkill -f 的模式是正则，包名里的点号会变成通配符，
-                    // 未锚定时可能命中无关进程（AGENTS.md 只允许这两个目标）。
+                    // 严格转义点号并锚定完整进程名，避免正则匹配误杀其他前缀或包含该包名的无关进程
                     val pattern = "^" + target.packageName.replace(".", "\\.") + "($| )"
                     if (runSu("pkill -f '$pattern'").exitCode != 0) {
                         add(context.getString(target.titleRes))

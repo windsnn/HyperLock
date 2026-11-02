@@ -172,8 +172,7 @@ internal fun Lock(
                 }
             }
             item {
-                // 歌词依赖迷你播放器卡片存在（卡片位置与歌词订阅都由控制器创建），
-                // 因此播放器关闭时整组隐藏，与拆分前的可见性语义保持一致。
+                // 歌词卡片寄宿于迷你播放器，播放器关闭时联动隐藏整组配置
                 ExpandGroup(s.lockscreenMiniPlayerEnabled) {
                     Group(stringResource(R.string.group_lyrics)) {
                         OverlayDropdownPreference(

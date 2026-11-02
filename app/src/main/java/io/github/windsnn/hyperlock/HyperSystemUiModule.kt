@@ -9,7 +9,7 @@ import java.lang.reflect.Constructor
 import java.lang.reflect.Method
 
 class HyperSystemUiModule : XposedModule() {
-    /** Bridges so the extracted hook files can install through this module. */
+    /** 供各个 Hook 安装器委托调用的桥接方法 */
     internal fun attachHook(origin: Method) = hook(origin)
 
     internal fun attachHook(origin: Constructor<*>) = hook(origin)
@@ -38,7 +38,7 @@ class HyperSystemUiModule : XposedModule() {
                     }
                     if (!fingerprintIconHookInstalled) {
                         installFingerprintIconVisualHook(classLoader, preferences)
-                        // This optional visual hook varies between HyperOS builds.
+                        // 指纹图标动画 hook 在部分构建版本中类结构可能变化，失败时降级容错
                         runCatching {
                             installLockscreenFingerprintAnimationHook(classLoader, preferences)
                         }.onFailure { error ->

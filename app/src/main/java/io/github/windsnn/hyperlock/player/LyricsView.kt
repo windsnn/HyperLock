@@ -29,11 +29,7 @@ private const val LYRIC_TRANSITION_DURATION_MS = 280L
 private const val LYRIC_TRANSITION_TRAVEL_DP = 10f
 
 /**
- * 苹果音乐风格逐字卡拉OK与推镜跟随歌词文本控件：
- * 1. 毫秒级逐字点亮：未唱部分半透白（主行45% / 副行35%），已唱部分纯白高亮（主行100% / 副行85%）并伴有立体柔光；
- * 2. 人声进度驱动推镜（Camera Tracking）：镜头紧随当前 Active Word 稳健推移，唱在句首稳停句首，唱到句末稳停句末，绝无机械跑马灯；
- * 3. 左右边缘 20dp 软渐隐羽化（Soft Edge Alpha Fade）：利用硬件加速 DST_OUT 蒙版，文字自然隐入背景，杜绝生硬截断；
- * 4. 自适应高度与呼吸留白，从根本上解决大字号上下裁切。
+ * 支持逐字卡拉OK染色、人声进度推镜跟随与左右边缘渐隐羽化的歌词视图。
  */
 private class AppleLyricTextView(
     context: Context,

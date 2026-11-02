@@ -15,11 +15,12 @@ import android.view.View
 import kotlin.math.min
 
 /**
- * 锁屏迷你播放器专用歌名与歌手自绘控件：
- * 1. 双行/单行智能排版：无歌手或纯音轨时副行完全隐藏，主行绝对垂直居中；
- * 2. 首尾衔接循环跑马灯（Loop Tape）：超长文本以 30dp/s 匀速流动，首尾咬合无限循环，永不倒带抽搐；
- * 3. 左右硬件加速边缘羽化（DST_OUT 蒙版），文字严格约束在净空视口内，永不穿模封面与按钮；
- * 4. 播放状态与息屏感知：暂停或灭屏时彻底停止帧回调，零后台功耗。
+ * 锁屏迷你播放器曲目信息自绘控件。
+ *
+ * - 支持双行与单行自适应垂直居中排版；
+ * - 超长文本首尾无缝循环流动；
+ * - 左右边缘通过硬件加速 DST_OUT 蒙版实现渐隐羽化；
+ * - 暂停或熄屏时停止绘制回调以降低功耗。
  */
 internal class LockscreenTrackView(context: Context) : View(context) {
     private val density = resources.displayMetrics.density
@@ -277,7 +278,7 @@ internal class LockscreenTrackView(context: Context) : View(context) {
             if (needFade) {
                 ensureShaders(w)
                 val fade = activeFadeWidth
-                // 1. 歌名行独立羽化（仅在上半区 [0, splitY] 生效，绝不向下侵入歌手行）
+                // 歌名行上半区独立羽化
                 if (titleOverflow) {
                     if (titleScrollX > 1f) {
                         fadePaint.shader = leftFadeShader
@@ -286,7 +287,7 @@ internal class LockscreenTrackView(context: Context) : View(context) {
                     fadePaint.shader = rightFadeShader
                     canvas.drawRect(w - fade, 0f, w, splitY, fadePaint)
                 }
-                // 2. 歌手行独立羽化（仅在歌手自身超长且流动时，在下半区 [splitY, h] 生效）
+                // 歌手行下半区独立羽化（仅在歌手自身超长且流动时生效）
                 if (artistOverflow) {
                     if (artistScrollX > 1f) {
                         fadePaint.shader = leftFadeShader

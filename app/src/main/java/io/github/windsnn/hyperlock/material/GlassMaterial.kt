@@ -36,9 +36,8 @@ private val fallbackElementBlendLayers: List<ElementBlendLayer> =
 /**
  * 读取系统元素混合的三层参数。
  *
- * 与玻璃参数一样，平台把这三层写在资源里：`MediaViewBlurOnKeyguardEffect` 读出
- * `media_notification_element_blend_keyguard_color_*` 与 `media_notification_blend_mode_*`，
- * 再交给 `NotificationUtil.applyElementViewBlend`，所以资源就是当前 ROM 的唯一真值。
+ * 锁屏媒体卡片（`MediaViewBlurOnKeyguardEffect`）通过读取系统资源动态装配参数，
+ * 优先从当前系统资源中读取，失败时降级至内置兜底值。
  */
 private fun resolveSystemElementBlendLayers(resources: Resources?): List<ElementBlendLayer> {
     if (resources == null) return fallbackElementBlendLayers
@@ -74,9 +73,9 @@ private fun Resources.resourceId(name: String, type: String): Int =
     getIdentifier(name, type, SYSTEM_UI).takeIf { it != 0 } ?: getIdentifier(name, type, null)
 
 /**
- * 已经下发过高光的承载层。轮廓高光写在 View 上，只能靠再下发一份空参数注销；为了不去碰
- * 从未开过高光的视图（平台接口是 vendor 私有的，无谓调用没有收益），这里登记「谁开过高光」，
- * 只有登记过的视图才会走注销路径。承载层被回收后条目由 WeakHashMap 自动清除。
+ * 记录已应用轮廓高光的 View 弱引用集合。
+ *
+ * 轮廓高光由底层 Native 绘制在 View 上，仅需对已启用过高光的 View 显式下发全零参数注销。
  */
 private val bloomStrokedViews = Collections.synchronizedMap(WeakHashMap<View, Boolean>())
 
@@ -86,11 +85,9 @@ private fun setBloomStroke(view: View, parameters: FloatArray) {
 }
 
 /**
- * 清空承载层上的轮廓高光，只有确实下发过、且尚未注销的视图才会真的调用平台接口。
+ * 清空承载层上的轮廓高光。
  *
- * 高光是写在 View 上的一次性渲染状态，不会随底色/模糊变化自动回收：承载层在「高级材质」档位里
- * 被反复复用（迷你播放器切档、滑滑块、切开关都走同一块 materialLayer），所以关闭开关时必须显式
- * 下发全零参数注销它，否则上一次的高光会一直画着，直到视图被重建（重启作用域）。
+ * 避免 View 复用时遗留上一次渲染的高光状态。
  */
 internal fun clearBloomStroke(view: View) {
     if (!bloomStrokedViews.containsKey(view)) return
@@ -109,13 +106,8 @@ private fun applyBloomStroke(view: View, showHighlight: Boolean) {
 }
 
 /**
- * 高级材质：对齐系统自己的元素混合做法
- * （`NotificationUtil.applyElementViewBlend` + `applyContainerViewBlur`）。
- *
- * - 三项滑块的默认值就是系统值（基底色 #A0A0A0、不做 alpha 缩放、100dp 容器模糊），
- *   所以不动滑块时下发结果与系统锁屏媒体卡片完全一致；
- * - 颜色只管基底（第一层），系统的高光/折射层保持原样；
- * - 不透明度等价于系统 `MiBlurCompat.setMiBackgroundBlendColors(view, pairs, ratio)` 的 alpha 缩放。
+ * 高级材质：对齐系统锁屏媒体卡片元素混合实现
+ * (`NotificationUtil.applyElementViewBlend` + `applyContainerViewBlur`)。
  */
 internal fun applySystemElementBlendMaterial(
     view: View,
@@ -207,14 +199,9 @@ internal fun applyLegacyBackdropMaterial(
 private val systemGlassParamsCache = ConcurrentHashMap<String, FloatArray>()
 
 /**
- * 读取系统当前真正使用的玻璃参数向量。
+ * 读取当前系统实际使用的玻璃参数向量。
  *
- * 平台不把这组数值写在代码里：`NotifiFullAodController.parseFloatArrayRes` 与
- * `MediaViewGlassOnKeyguardEffect` 等都是解析 string-array 资源得到它，因此资源就是本版本 ROM
- * 的唯一真值。读资源还能让材质自动跟随 ROM 更新，而不是停留在某一个版本的快照上。
- *
- * 参数在 [SYSTEM_GLASS_PARAM_ARRAY_NAMES] 里按「锁屏静止态 → 锁屏焦点态 → 普通态」尝试，
- * 与系统给锁屏卡片选参数的顺序一致。
+ * 优先按 SYSTEM_GLASS_PARAM_ARRAY_NAMES 中定义的数组名顺序解析资源。
  */
 internal fun resolveSystemGlassParams(resources: Resources?): FloatArray? {
     if (resources == null) return null
@@ -246,11 +233,8 @@ internal fun buildNativeSoftGlassParameters(
 ): FloatArray {
     val base = resolveSystemGlassParams(resources) ?: FALLBACK_GLASS_BASE_PARAMETERS
     val params = base.clone()
-    // 通道布局来自 miuix.theme.token.GlassToken：下标 4 是 blend.luminanceAmount。
+    // 通道布局对齐 GlassToken：下标 4 为 luminanceAmount，11..14 为染色通道 (RGBA)
     params[4] = luminance.coerceIn(0f, MAX_SHORTCUT_GLASS_LUMINANCE)
-    // 15 = inner.colorWhite、16 = inner.colorMix 负责玻璃的通透白色内漫射，保持系统基线不动。
-    // 11..14 = inner.color（RGBA）是染色通道，默认值（白 / 15%）与系统锁屏组的
-    // 1,1,1 @ 0.15 完全一致，因此不动滑块时下发结果等于系统原始参数。
     params[11] = Color.red(color) / 255f
     params[12] = Color.green(color) / 255f
     params[13] = Color.blue(color) / 255f
@@ -272,8 +256,7 @@ internal fun applyNativeSoftGlassMaterial(
     // 模糊模式与混合色的 Compat 入口在 MiBlurCompat，不在 MiGlassCompat。
     val blurCompat = runCatching { Class.forName(MI_BLUR_COMPAT_CLASS, false, classLoader) }.getOrNull()
 
-    // MiBlurCompat 的静态签名是 (int, View)：先传模式再传控件。
-    // 类名缺失时退回实例方法，行为与系统 glass 路径一致。
+    // MiBlurCompat 静态入口签名：(int mode, View view)；若缺失则退回 View 原生实例方法
     runCatching {
         (blurCompat ?: error("$MI_BLUR_COMPAT_CLASS is unavailable")).getMethod(
             "setMiViewBlurModeCompat",
@@ -292,8 +275,7 @@ internal fun applyNativeSoftGlassMaterial(
         runCatching { viewClass.getMethod("clearMiBackgroundBlendColor").invoke(view) }
     }
 
-    // Only the compositor registration matters here: the visible blur comes from the Bionics
-    // shader, so the background blur radius stays 0.
+    // 柔光玻璃自身 Shader 已包含模糊逻辑，仅需激活窗口模糊通道，背景模糊半径置 0
     viewClass.getMethod("setPassWindowBlurEnabled", Boolean::class.javaPrimitiveType)
         .invoke(view, true)
     viewClass.getMethod("setMiBackgroundBlurMode", Int::class.javaPrimitiveType)
@@ -319,9 +301,7 @@ internal fun applyNativeSoftGlassMaterial(
         opacity = opacity,
     )
 
-    // Compat 入口优先：反编译显示 `setMiViewMaterialTypeCompat` 是唯一会在材质类型为 1 时
-    // 同时下发「SDF 最大尺寸（即控件边界）」的路径（未布局时它自己延后到 onLayout）。
-    // 直接调实例方法会跳过这一步，折射边缘会按旧尺寸计算，出现边缘错位。
+    // 优先通过 MiGlassCompat 下发材质类型以联动 SDF 边界尺寸；失败则回退至原生 View 反射
     val applied = runCatching {
         glassCompat.getMethod(
             "setMiViewMaterialTypeCompat",
@@ -334,14 +314,13 @@ internal fun applyNativeSoftGlassMaterial(
     }.getOrDefault(false)
 
     if (!applied) {
-        // 老版本 ROM 没有 MiGlassCompat 时退回实例方法。
         val actualClass = view.javaClass
         actualClass.getMethod("setMiViewMaterialType", Int::class.javaPrimitiveType)
             .invoke(view, SHORTCUT_GLASS_MATERIAL_TYPE)
         actualClass.getMethod("setMiGlass", FloatArray::class.java)
             .invoke(view, glassParameters)
     }
-    // The shader now paints this view, so the fallback drawable is dropped.
+    // 材质已由 Shader 绘制，清除原有背景及图像
     view.background = null
     if (view is ImageView) {
         view.setImageDrawable(null)
@@ -379,9 +358,9 @@ internal fun applySystemGlassMaterial(
 }
 
 /**
- * Releases the OS4 glass shader from a view that is leaving the soft-glass mode. The shader is
- * registered on the view that received it and keeps painting through later calls, so without this
- * a reused carrier still looks like soft glass after switching to another background mode.
+ * 清除 View 上的柔光玻璃 Shader。
+ *
+ * 注销已注册的底层 Shader，避免切换背景模式或复用 View 时残留玻璃效果。
  */
 internal fun clearSoftGlassShader(view: View, classLoader: ClassLoader) {
     runCatching {
@@ -397,8 +376,7 @@ internal fun clearSoftGlassShader(view: View, classLoader: ClassLoader) {
             Int::class.javaPrimitiveType,
             View::class.java,
         ).invoke(null, 0, view)
-        // 系统自己的清理路径（MediaViewGlassOnKeyguardEffect.clear）还会把参数向量整体清零，
-        // 否则已注册的 shader 会继续按上一次的参数绘制。
+        // 参数向量全零重置以注销 Shader
         glassCompat.getMethod("setMiGlassCompat", View::class.java, FloatArray::class.java)
             .invoke(null, view, FloatArray(GLASS_PARAM_COUNT))
     }
@@ -406,11 +384,7 @@ internal fun clearSoftGlassShader(view: View, classLoader: ClassLoader) {
 }
 
 /**
- * 释放承载层上的**全部**平台材质状态。
- *
- * 柔光玻璃的 shader 由 MiGlassCompat 释放，而高级材质写入的是视图级 blend 色层、
- * 背景模糊、pass-window blur 与轮廓高光；三套状态互相独立，只清一套会让"高级材质 → 纯色/跟随系统"
- * 留下旧色层、模糊或高光。每一步单独隔离，失败也能在日志里定位是哪一项没清掉。
+ * 释放承载层上的所有平台材质效果（柔光玻璃 Shader、元素混合层、背景模糊与轮廓高光）。
  */
 internal fun clearPlatformMaterial(view: View, classLoader: ClassLoader) {
     runCatching { clearSoftGlassShader(view, classLoader) }

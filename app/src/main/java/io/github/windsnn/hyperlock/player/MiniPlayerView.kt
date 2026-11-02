@@ -559,8 +559,7 @@ internal class LockscreenMiniPlayerView(context: Context) : FrameLayout(context)
         materialLayer.setImageDrawable(
             when (appearance.backgroundMode) {
                 MINI_PLAYER_BACKGROUND_PURE -> rounded(appearance.pureColor, dp(40).toFloat())
-                // Only a 1/255 anchor so the compositor keeps a drawable to register; the
-                // visible tint comes solely from the platform blend, exactly like the shortcut.
+                // 极低透明度锚点背景以注册合成器，实际色彩由底层平台混合渲染
                 MINI_PLAYER_BACKGROUND_ADVANCED -> rounded(Color.argb(1, 255, 255, 255), dp(40).toFloat())
                 MINI_PLAYER_BACKGROUND_SOFT_GLASS -> rounded(Color.argb(30, 255, 255, 255), dp(40).toFloat())
                 else -> rounded(Color.argb(158, 31, 35, 36), dp(40).toFloat()).apply {
@@ -568,8 +567,7 @@ internal class LockscreenMiniPlayerView(context: Context) : FrameLayout(context)
                 }
             },
         )
-        // Handed over for every mode so the carrier can release the previous mode's material even
-        // when the new one needs no platform material (pure colour / built-in default).
+        // 统一释放上一档材质（包括纯色/系统默认档）
         applyPlatformMaterial(materialLayer, appearance)
 
         trackView.setContentTheme(appearance.isDarkContent)

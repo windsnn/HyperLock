@@ -16,8 +16,10 @@ import top.yukonga.miuix.kmp.preference.SliderPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 /**
- * 统一的参数滑块：decimals 决定滑动取整精度、芯片文本小数位与输入对话框的键盘类型。
- * 默认值吸附按区间跨度的 3.5% 计算，整数档（decimals = 0）额外保证至少 1 的吸附半径。
+ * 统一参数滑块组件。
+ *
+ * - `decimals` 指定取整精度、数值芯片小数位及输入法数字键盘模式；
+ * - 默认值吸附基于量程区间的 3.5% 计算，整数模式下保证至少 1 的吸附半径。
  */
 @Composable
 internal fun ParameterSlider(

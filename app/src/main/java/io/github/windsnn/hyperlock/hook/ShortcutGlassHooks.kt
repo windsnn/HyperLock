@@ -78,9 +78,7 @@ internal fun HyperSystemUiModule.installLockscreenShortcutGlassHook(
                     registerReloadReceiver(root.context, classLoader, preferences)
                     runCatching {
                         LockscreenColorCoordinator.tryRefreshIfMissing()
-                        // Keep the shortcut containers fully laid out even when the user
-                        // selects "不显示". In that mode the layer is transparent, so this
-                        // preserves geometry without adding a visible shortcut background.
+                        // 即使选择“不显示”，仍保持容器完整布局以维持几何尺寸，材质层置为透明
                         installShortcutGlassBackgrounds(root, preferences, classLoader)
                     }.onFailure { error ->
                         hookLog(Log.ERROR, TAG, "Could not apply lockscreen shortcut glass", error)
@@ -143,7 +141,7 @@ internal fun HyperSystemUiModule.installLockscreenKeyguardStateHooks(classLoader
     }
 }
 
-/** 设置变化后就地重做快捷按钮的背景与几何；只处理仍挂在窗口上的快捷区。 */
+/** 配置变更后重新应用快捷按钮的背景材质与几何尺寸（仅对已附着于窗口的快捷区生效）。 */
 internal class LockscreenShortcutReloadSlot(private val module: HyperSystemUiModule) : SettingsReloadSlot {
     override val id = "lockscreen-shortcut"
 
@@ -331,7 +329,7 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
     var isSliding = false
     var isTouchDownHandled = false
     var lastClickTime = 0L
-    // 与系统原生快捷键点击提示动画（Tips Animation：150+150+100+100+100 = 600ms）严格同频
+    // 与系统原生快捷键点击提示动画总时长 (600ms) 严格同步
     val systemAnimDurationMs = 600L
 
     val getController = {
@@ -357,10 +355,7 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
             .firstOrNull { it.tag == SHORTCUT_GLASS_TAG }
     }
 
-    // preDraw 监听器必须成对移除：ViewTreeObserver 属于 window 级 root，视图 detach 不会
-    // 自动摘除，反复重建快捷区会让回调数与对旧视图的引用持续增长。
-    // 移除必须用绑定时捕获的 observer：视图 detach 后再取 viewTreeObserver 会拿到一个空的
-    // 浮动 observer，对它 remove 不会影响 window observer 上的注册。
+    // preDraw 监听器成对管理：使用捕获的 Window 级 ViewTreeObserver 移除，避免 detach 后取得空 observer 导致泄漏
     val preDrawBindings = ArrayList<Triple<View, ViewTreeObserver, ViewTreeObserver.OnPreDrawListener>>()
     val bindGlassFollow: (View) -> Unit = { target ->
         val observer = target.viewTreeObserver
@@ -391,7 +386,7 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                // 系统 600ms 提示动画播放期间，直接锁定忽略，绝不打断系统平滑摆动，亦杜绝连击震动
+                // 系统 600ms 提示动画播放期间忽略重复点击与震动
                 if (isSystemAnimRunning) {
                     isTouchDownHandled = false
                     return@OnTouchListener false
@@ -509,7 +504,7 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
     })
     shortcutContainer.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
         override fun onViewAttachedToWindow(v: View) {
-            // detach 时移除了 preDraw 监听器，重新挂载后要重新绑定当前图标。
+            // 重新挂载后恢复绑定目标图标的 preDraw 监听
             if (preDrawBindings.isEmpty()) {
                 findTargetChild().let { if (it !== shortcutContainer) bindGlassFollow(it) }
             }
@@ -540,8 +535,7 @@ internal fun ViewGroup.addOnHierarchyChangeListenerSafe(listener: ViewGroup.OnHi
     val composite = synchronized(hierarchyListeners) {
         hierarchyListeners.getOrPut(this) {
             CompositeHierarchyChangeListener().also { created ->
-                // ViewGroup 只暴露 setter：先反射取回系统/插件已注册的监听器并纳入转发，
-                // 否则直接 set 会把厂商回调静默顶掉。
+                // 反射取回已有监听器并组合转发，防止覆盖系统原有回调
                 currentHierarchyChangeListener()
                     ?.takeIf { it !== created && it !is CompositeHierarchyChangeListener }
                     ?.let { created.listeners.add(it) }
@@ -557,8 +551,7 @@ internal fun ViewGroup.addOnHierarchyChangeListenerSafe(listener: ViewGroup.OnHi
 }
 
 /**
- * 反射读取 ViewGroup 上已有的 OnHierarchyChangeListener：公开 API 只有 setter，
- * 读不回来时返回 null（此时行为与原来的直接覆盖一致）。
+ * 反射读取 ViewGroup 上已有的 OnHierarchyChangeListener（因系统仅公开 setter）。
  */
 private fun ViewGroup.currentHierarchyChangeListener(): ViewGroup.OnHierarchyChangeListener? = runCatching {
     val field = ViewGroup::class.java.getDeclaredField("mOnHierarchyChangeListener")
@@ -606,8 +599,7 @@ internal fun HyperSystemUiModule.applyLockscreenShortcutGeometry(root: View, pre
             parent = parent.parent
         }
 
-        // 首次处理该视图时记下原始 margin：关闭"快捷按钮间距"后要写回原值，
-        // 否则同一次锁屏会话内开关看起来失效（只有系统重建快捷区才会复位）。
+        // 记录原始 Margin，用于关闭自定义间距时恢复默认值
         val originalMargins = synchronized(shortcutOriginalMargins) {
             shortcutOriginalMargins.getOrPut(shortcut) {
                 val params = shortcut.layoutParams as? ViewGroup.MarginLayoutParams
@@ -665,7 +657,7 @@ internal fun HyperSystemUiModule.applyLockscreenShortcutGeometry(root: View, pre
 }
 
 /**
- * Holds the current icon colour mode so one listener can serve every reload.
+ * 维护当前图标颜色模式的层级变更监听器。
  */
 internal class ShortcutIconColorListener(private val module: HyperSystemUiModule) : ViewGroup.OnHierarchyChangeListener {
     var mode: Int = SHORTCUT_ICON_COLOR_AUTO
@@ -718,7 +710,7 @@ internal fun HyperSystemUiModule.applyShortcutIconColorMode(container: ViewGroup
         }
     }
     listener.mode = mode
-    // Vendor content can still be attached after addShortcutViews returns.
+    // addShortcutViews 返回后系统可能延后挂载子视图，延迟刷新图标着色
     container.post { applyShortcutIconColor(container, mode) }
     container.postDelayed({ applyShortcutIconColor(container, mode) }, 300L)
     container.postDelayed({ applyShortcutIconColor(container, mode) }, 1000L)

@@ -5,7 +5,7 @@ import android.media.session.MediaController
 import java.util.Collections
 import java.util.WeakHashMap
 
-/** Coordinates notification-driven lyrics collision avoidance. */
+/** 协调通知与锁屏歌词防遮挡避让。 */
 internal object LockscreenLyricsNotificationBridge {
     private val listeners = Collections.newSetFromMap(WeakHashMap<LockscreenMiniPlayerController, Boolean>())
     @Volatile var hasActiveNotifications: Boolean = false
@@ -40,7 +40,7 @@ internal object LockscreenLyricsNotificationBridge {
     }
 }
 
-/** Values sourced from SystemUI's NotificationMediaManager rather than an inferred session list. */
+/** 源自 SystemUI NotificationMediaManager 的原生媒体状态。 */
 internal object LockscreenMediaBridge {
     private val listeners = Collections.newSetFromMap(WeakHashMap<LockscreenMiniPlayerController, Boolean>())
 
@@ -68,7 +68,7 @@ internal object LockscreenMediaBridge {
     }
 }
 
-/** Coordinates the dynamic switch between the custom card and SystemUI's media notification. */
+/** 协调自定义卡片与系统原生媒体通知之间的动态切换。 */
 internal object LockscreenMediaPresentationBridge {
     private val listeners = Collections.newSetFromMap(WeakHashMap<LockscreenMiniPlayerController, Boolean>())
 
@@ -94,7 +94,7 @@ internal object LockscreenMediaPresentationBridge {
     }
 }
 
-/** The SystemUI long-press menu is not part of the shortcut view hierarchy. */
+/** 系统锁屏长按自定义菜单状态桥接。 */
 internal object LockscreenCustomizationMenuBridge {
     private val listeners = Collections.newSetFromMap(WeakHashMap<LockscreenMiniPlayerController, Boolean>())
     @Volatile private var visible = false

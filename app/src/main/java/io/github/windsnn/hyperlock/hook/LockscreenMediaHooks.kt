@@ -192,9 +192,7 @@ internal fun HyperSystemUiModule.installLockscreenMediaHeaderHook(
         LockscreenMediaPresentationBridge.onPresentationChanged = {
             applyLockscreenMediaPresentation(preferences)
         }
-        // The media controller's keyguard callback is a generated nested class on this ROM.
-        // KeyguardManager is not reliable from the SystemUI process during transitions, so
-        // mirror the callback's boolean state instead.
+        // 监听锁屏回调状态以同步 Keyguard 可见性
         runCatching {
             val callbackClass = classLoader.loadClass(
                 "com.android.systemui.statusbar.notification.mediacontrol.MiuiMediaNotificationControllerImpl\$keyguardUpdateMonitorCallback\$1",
@@ -227,11 +225,7 @@ internal fun HyperSystemUiModule.installLockscreenMediaHeaderHook(
         }.onFailure { error ->
             hookLog(Log.WARN, TAG, "Could not install media keyguard callback hook", error)
         }
-        // The vendor controller writes the header's inherited View.visibility property
-        // directly. Hook View.setVisibility and only apply a post-call correction when the
-        // receiver is the actual media header. We deliberately keep the original call and
-        // receiver untouched; replacing arguments on a shared View method can crash other
-        // View subclasses inside SystemUI.
+        // 拦截 View.setVisibility 并在调用后校正目标 Header，避免直接修改共有 View 参数引起崩溃
         val viewVisibility = View::class.java.getMethod(
             "setVisibility",
             Int::class.javaPrimitiveType,
@@ -256,9 +250,7 @@ internal fun HyperSystemUiModule.installLockscreenMediaHeaderHook(
                 result
             }
 
-        // The holder is assigned independently from media-data updates on this ROM.  Bind
-        // after that assignment as well, otherwise the first shown media card can miss the
-        // artwork listener entirely.
+        // 绑定 ViewHolder 赋值时机，防止首个媒体卡片漏挂封面监听
         val mediaViewHolderClass = classLoader.loadClass(
             "com.android.systemui.statusbar.notification.mediacontrol.MiuiMediaViewHolder",
         )
@@ -274,7 +266,7 @@ internal fun HyperSystemUiModule.installLockscreenMediaHeaderHook(
                 (chain.thisObject as? View)?.takeIf(headerClass::isInstance)?.let { header ->
                     lockscreenMediaHeaders += header
                     installLockscreenMediaArtworkClick(header, preferences)
-                    // Some holder children are attached on the next traversal.
+                    // 延迟到下一绘制周期以兼容异步挂载的子视图
                     header.post {
                         installLockscreenMediaArtworkClick(header, preferences)
                     }
@@ -368,8 +360,7 @@ internal fun HyperSystemUiModule.installLockscreenMediaVisibilityProviderHooks(
 }
 
 /**
- * HyperOS's tiny lockscreen panel builds its media card directly from MediaData rather than a
- * notification row. Filtering NotificationEntry alone therefore leaves that card visible.
+ * 拦截 HyperOS 锁屏极小化面板直接基于 MediaData 构建的媒体卡片。
  */
 internal fun HyperSystemUiModule.installTinyLockscreenMediaHook(
     classLoader: ClassLoader,
@@ -425,7 +416,7 @@ internal fun HyperSystemUiModule.shouldHideLockscreenMedia(preferences: SharedPr
         else -> false
     }
 
-/** Dynamic mode must retain the notification entry so it can be shown after a card tap. */
+/** 动态模式下保留通知 Entry 供卡片点击还原展示。 */
 internal fun HyperSystemUiModule.shouldFilterLockscreenMedia(preferences: SharedPreferences): Boolean =
     preferences.getBoolean(KEY_LOCKSCREEN_MINI_PLAYER_ENABLED, false) &&
         lockscreenMediaNotificationMode(preferences) == LOCKSCREEN_MEDIA_NOTIFICATION_ALWAYS_HIDE
@@ -439,13 +430,7 @@ internal fun HyperSystemUiModule.applyLockscreenMediaPresentation(preferences: S
             return@forEach
         }
         if (hidden || lockscreenMediaKeyguardShowing || isLockscreenMediaView(header)) {
-            // SystemUI hosts the fingerprint and notification surfaces on separate loopers.
-            // A presentation change originates from the mini player, so apply each update
-            // through the target view's own queue instead of assuming the caller's thread.
-            // MiuiMediaHeaderView is shared by the keyguard and notification shade.
-            // Do not animate transforms on this real SystemUI view: an unlock or shade
-            // rebind can detach it before the animation end action runs, leaving the
-            // notification permanently scaled or transparent.
+            // 通过目标 View 所在队列派发更新，避免跨线程以及在共享 Header 上施加动画导致残存形变
             header.post {
                 updateLockscreenMediaHeaderVisibility(header, hidden)
             }
@@ -461,8 +446,7 @@ internal fun HyperSystemUiModule.applyLockscreenMediaPresentation(preferences: S
 
 internal fun HyperSystemUiModule.updateLockscreenMediaHeaderVisibility(header: View, hidden: Boolean) {
     if (!isMiuiMediaHeaderView(header)) return
-    // Cancel any vendor animation targeting this shared view and restore the neutral visual
-    // state before changing visibility, so no stuck transform or alpha survives the toggle.
+    // 取消原生动画并重置状态，防止切换残留形变与透明度异常
     header.animate().cancel()
     header.alpha = 1f
     header.scaleX = 1f
@@ -487,8 +471,7 @@ internal fun HyperSystemUiModule.installLockscreenMediaArtworkClick(header: View
                     LockscreenMediaPresentationBridge.setShowMiniPlayer(true)
                 }
             }
-            // Consume the complete gesture so the vendor click listener cannot replace the
-            // presentation change after the artwork tap.
+            // 消费完整手势避免原生点击事件覆盖展示状态
             true
         }
     }
@@ -543,9 +526,7 @@ internal fun HyperSystemUiModule.isMediaEntry(entry: Any?): Boolean = runCatchin
     if (entryKey != null && entryKey == LockscreenMediaBridge.notificationKey) {
         return@runCatching true
     }
-    // HyperOS commits mMediaNotificationKey asynchronously. During that window the
-    // notification is still identifiable by the package owning the active media session.
-    // This is the stable signal used by the lockscreen media card itself.
+    // 异步提交 key 窗口期内，回退通过媒体会话所属包名进行稳定识别
     val mediaPackage = LockscreenMediaBridge.controller?.packageName
     val sbnPackage = sbn.javaClass.methods.firstOrNull {
         it.name == "getPackageName" && it.parameterCount == 0

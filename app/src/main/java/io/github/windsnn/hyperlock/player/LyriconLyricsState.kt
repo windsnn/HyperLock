@@ -139,9 +139,7 @@ internal class LyriconLyricsState(
     /**
      * 提前切行的时间（毫秒）。
      *
-     * 行切换点由 `position + leadMs` 决定：下一行的 `begin` 到来之前就切过去，
-     * 让用户在人声唱到第一个词时已经就位（苹果音乐的手感）。
-     * 返回 true 表示提前量变化导致当前行需要重算。
+     * 行切换点由 `position + leadMs` 计算，在下一行演唱前适度提前切行以预留阅读视野。
      */
     fun leadChanged(newLeadMs: Long): Boolean {
         val normalized = newLeadMs.coerceIn(0L, MAX_LEAD_MS)

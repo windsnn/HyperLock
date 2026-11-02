@@ -85,22 +85,18 @@ internal const val MIUI_MEDIA_HEADER_VIEW_CLASS =
 internal const val MI_GLASS_COMPAT_CLASS = "com.miui.systemui.util.MiGlassCompat"
 internal const val MI_BLUR_COMPAT_CLASS = "com.miui.systemui.util.MiBlurCompat"
 
-/** 已核对：KeyguardIndicationController 的充电分支以 updateIndication(3, ...) 下发，3 即充电指示类型。 */
+/** KeyguardIndicationController 充电指示类型常量。 */
 internal const val CHARGING_INDICATION_TYPE = 3
 internal const val IMAGE_THRESHOLD_FIELD = "IMAGE_THRESHOLD"
 internal const val THRESHOLD_RATE_FIELD = "rate"
 
-/** 已核对：DepthAvoidEvaluator.IMAGE_THRESHOLD = Threshold(0.2d)，Threshold.rate 为唯一字段。 */
+/** DepthAvoidEvaluator.IMAGE_THRESHOLD Threshold.rate 判定阈值，1.0 表示解除景深避让比例限制。 */
 internal const val UNLIMITED_DEPTH_IMAGE_THRESHOLD = 1.0
 
 /**
- * 隐藏指纹图标时返回的资源 id。
+ * 隐藏指纹图标时使用的资源 ID。
  *
- * 系统自身没有"隐藏态"图标：MiuiGxzwAnimManager.getFingerIconResource 只会返回
- * finger_circle_image_aod / _grey / _grey_enroll / _normal / _light 五种。
- * 但 MiuiGxzwFrameAnimation.DrawRunnable 明确把 0 当作"没有背景图"
- * （`mBackgroundBmp = i3 == 0 ? null : decodeBitmap(i3, true)`），
- * 且 decodeBitmap 对非法 id 有兜底 catch，因此 0 才是系统认可的"无图标"取值。
+ * MiuiGxzwFrameAnimation 将 0 视作空背景位图（null），从而安全隐藏图标。
  */
 internal const val LOCKSCREEN_HIDDEN_FINGERPRINT_ICON_RESOURCE = 0
 internal const val CLOCK_UTILITY_CLASS = "com.miui.clock.allInOne.AllInOneUtil"
@@ -108,27 +104,14 @@ internal const val CLOCK_UTILITY_METHOD = "applyOtaClockParams"
 internal const val CLOCK_BEAN_CLASS = "com.miui.clock.module.ClockBean"
 
 /**
- * 时钟材质效果取值。编号由编辑器埋点
- * `com.miui.keyguard.editor.track.TrackerUtil.getFontEffects()` 定义：
+ * 时钟材质效果类型枚举取值：
  * 0 纯色 / 1 混色 / 2 叠加 / 3 辉光 / 4 渐变模糊 / 5 玻璃。
  *
- * SystemUI 与 com.miui.aod 两侧的 `com.miui.clock.utils.ClockEffectUtils` 与之吻合：
- * `isGlassType(i)` 为 `i == 5`，`isDifferenceType` 为 2、`isGradualType` 为 4；效果 1 走
- * `MiuiBlurUtils.setContainerPassBlur`（容器透传模糊），5 才走玻璃容器。
- *
- * `AllInOneUtil.applyOtaClockParams`（SystemUI）与 AOD 的 `applyOtaColorEffect` 只保留 0 与 2，
- * 把其余取值（含 5）统一改写成 1（设备不支持背景模糊时更会直接改写成 0），
- * 这正是"材质限制"的来源；把 5 还原回去才是这个功能的全部意义。
- *
- * 注意签名文字用的 `com.miui.lockscreeninfo.ClockEffectUtils` 只有 0/1/2/4，没有 5，
- * 不能用它判定玻璃取值。
+ * 系统在 `applyOtaClockParams` / `applyOtaColorEffect` 中会将非 0/2 效果统一降级改写为 1；
+ * 模块将其还原为 5 以保留玻璃材质。
  */
 internal const val CLOCK_EFFECT_GLASS = 5
-/**
- * 系统把非 0/2 的时钟效果统一改写成的取值（容器透传模糊）。
- * `AllInOneUtil.applyOtaClockParams` 与 AOD 的 `applyOtaColorEffect` 只有两种情况会改写：
- * 不支持背景模糊时改写成 0，其余非 0/2 的效果改写成 1。
- */
+/** 系统对非 0/2 时钟效果改写的降级目标值（容器透传模糊）。 */
 internal const val CLOCK_EFFECT_BLUR_MIX = 1
 internal const val DEFAULT_SHORTCUT_GLASS_RADIUS = 26f
 internal const val MIN_SHORTCUT_GLASS_RADIUS = 20f
@@ -139,11 +122,7 @@ internal const val MAX_SHORTCUT_OPACITY = 100
 internal const val MAX_SHORTCUT_BACKDROP_BLUR_RADIUS = 120
 internal const val MAX_SHORTCUT_GLASS_BLUR_RADIUS = 100
 
-/**
- * 已核对口径：系统通知玻璃行用 setMiGlassBlurRadius(view, 50, 500)，
- * 与小模糊 0..100、大模糊 = 背景模糊度 × 10 的映射一致（默认 50 → 500）。
- * 系统另有可配置上限（ShadeBlendBlurControllerImpl 默认 100/100），未证明 1000 越界，故保留。
- */
+/** 玻璃模糊半径上限（大模糊 = 背景模糊度 × 10，默认 50 -> 500）。 */
 internal const val MAX_SHORTCUT_GLASS_LARGE_BLUR_RADIUS = 1000
 internal const val MAX_SHORTCUT_GLASS_LUMINANCE = 0.5f
 internal const val DEFAULT_ADVANCED_MATERIAL_OPACITY = 14
@@ -197,11 +176,11 @@ internal val lockscreenHiddenRowVisibility = Collections.synchronizedMap(
 )
 internal val lockscreenMediaRows = Collections.newSetFromMap(WeakHashMap<View, Boolean>())
 internal val monitoredNotificationRows = Collections.newSetFromMap(WeakHashMap<View, Boolean>())
-/** 快捷按钮容器的原始 margin（纯数值，不引用视图），用于关闭"快捷按钮间距"时复位。 */
+/** 快捷功能容器原始 margin 记录，用于恢复默认边距。 */
 internal val shortcutOriginalMargins = Collections.synchronizedMap(
     WeakHashMap<View, IntArray>(),
 )
-/** PIN keypad klondike labels whose single-line flag has already been normalised. */
+/** 已完成单行属性归一化的 PIN 键英文字母副标题。 */
 internal val lockscreenPinKlondikeNormalized = Collections.newSetFromMap(WeakHashMap<TextView, Boolean>())
 internal var updateActiveNotificationsPosted = false
 
@@ -243,8 +222,7 @@ internal fun scheduleUpdateActiveLockscreenNotifications() {
 
 internal fun updateActiveLockscreenNotifications() {
     val snapshot = synchronized(lockscreenRows) { lockscreenRows.toList() }
-    // Only stable state is inspected: alpha and height are mid-animation / mid-layout
-    // values, and a row that becomes visible while the screen turns on has neither yet.
+    // 仅检测稳定状态：忽略动画中间态，检查已附着且可见的非媒体通知行
     val hasActive = snapshot.any { row ->
         row !in lockscreenMediaRows &&
             row !in lockscreenHiddenRows &&

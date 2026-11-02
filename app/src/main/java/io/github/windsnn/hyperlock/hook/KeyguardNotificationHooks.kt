@@ -76,12 +76,10 @@ internal fun HyperSystemUiModule.installLockscreenNotificationHook(classLoader: 
 }
 
 /**
- * 通知下沉的返回值由系统自己的 combine flow 缓存：模块既改不了上游 StateFlow，也没有「重算」入口，
- * 所以这里不拦截变换结果，而是抓住下游 collector —— 发射时按开关改写并记下系统原值，
- * 设置变化时由 [LockscreenNotificationReloadSlot] 往同一个 collector 补发一次，让下游立刻重算。
+ * 拦截通知容器的下沉 Flow。
  *
- * 挂在库类 `FlowKt__ZipKt$combine...` 上的 hook 用 `$transform$inlined` 的类名过滤，
- * 只有这条 useExtraShelfSpace 流会走改写分支，其余 combine 直接原样放行。
+ * 通过包装下游 FlowCollector，在发射时按配置改写 useExtraShelfSpace，
+ * 并在配置变更时由 [LockscreenNotificationReloadSlot] 主动重发，无需重启作用域。
  */
 internal fun HyperSystemUiModule.installShelfSpaceReplayHook(
     classLoader: ClassLoader,
@@ -112,8 +110,7 @@ internal fun HyperSystemUiModule.installShelfSpaceReplayHook(
                     collector = collector,
                     preferences = preferences,
                 )
-                // 只换参数，必须用 proceed(args)：proceedWith 是「换 this」的重载，
-                // 传数组进去会被当成 thisObject 校验并抛 IllegalArgumentException（该异常会穿透到协程）。
+                // 替换 Collector 参数必须使用 proceed(args)，避免触发参数类型校验异常
                 chain.proceed(arrayOf(replayable.proxy, chain.getArg(1)))
             }
         }
@@ -127,8 +124,7 @@ private fun HyperSystemUiModule.replayTargetFor(
     preferences: SharedPreferences,
 ): ReplayableCollector {
     val replayable = ReplayableCollector(classLoader, collectorInterface, collector) { value ->
-        // useExtraShelfSpace = 第二个输入 || !第一个输入；改写为 false 表示"不额外占用货架空间"，
-        // 即去掉通知被指纹区顶下去的下沉留白。
+        // useExtraShelfSpace 为 false 时去除通知由于指纹避让产生的下沉空隙
         if (isNotificationFodPositionLimitRemoved(preferences)) false else value
     }
     synchronized(notificationReplayTargets) {
@@ -140,8 +136,7 @@ private fun HyperSystemUiModule.replayTargetFor(
 }
 
 /**
- * 设置变化时向已登记的 collector 补发一次。开关没变就直接返回：
- * 其它设置连续变化（拖滑块）不应该反复触发通知重排。
+ * 配置变更时触发通知 Flow 重新计算。配置未变化时跳过重算。
  */
 internal class LockscreenNotificationReloadSlot(private val module: HyperSystemUiModule) : SettingsReloadSlot {
     override val id = "lockscreen-notification"
@@ -165,8 +160,7 @@ internal class LockscreenNotificationReloadSlot(private val module: HyperSystemU
 }
 
 /**
- * 包住系统 flow 的下游 collector：转发时按 [rewrite] 改写并记住系统原值，
- * [replay] 用于设置变化时立刻补发一次，不需要重启作用域。
+ * 拦截并改写 Flow 数据，支持在配置变更时通过 [replay] 主动重放最新值。
  */
 internal class ReplayableCollector(
     classLoader: ClassLoader,
@@ -235,12 +229,7 @@ internal class ReplayableCollector(
 
 internal fun HyperSystemUiModule.findFodNotificationPositionFlows(classLoader: ClassLoader): List<Class<*>> {
     val result = LinkedHashSet<Class<*>>()
-    // Kotlin emits this combine Flow as a top-level synthetic class.  It is not reported by
-    // Class.getDeclaredClasses(), and the lambda ordinal changes whenever Xiaomi edits the
-    // controller.  Locate the stable Flow shape instead of depending on the ordinal or its
-    // nested SuspendLambda implementation.
-    // 17.03.260226.r 实测命中 `...$lambda$102$$inlined$combine$1`（即 lambda 序号为 102），
-    // 区间保留是为了跨 ROM 版本继续可用。
+    // 扫描 KeyguardPanelViewController 中由编译器生成的 combine Flow 合成类（带序号区间保护）
     for (ordinal in FOD_NOTIFICATION_POSITION_FLOW_ORDINAL_RANGE) {
         val className = "$FOD_NOTIFICATION_POSITION_FLOW_PREFIX$ordinal$FOD_NOTIFICATION_POSITION_FLOW_SUFFIX"
         runCatching { classLoader.loadClass(className) }
@@ -257,9 +246,7 @@ internal fun HyperSystemUiModule.findFodNotificationPositionFlows(classLoader: C
 }
 
 /**
- * Makes the final combine input (hasEnrolledTemplatesFlow) report false while the feature is
- * enabled.  Decorating the source flow keeps preference changes live and leaves all other
- * FOD behavior untouched.
+ * 将指纹注册状态 Flow 改写为 false，以解除锁屏通知位置避让限制。
  */
 internal fun HyperSystemUiModule.installFodEnrollmentFlowOverride(
     combineFlow: Any?,
@@ -306,8 +293,7 @@ internal fun HyperSystemUiModule.createFodEnrollmentFlowOverride(
     )
     val collectorClass = method.parameterTypes.firstOrNull()
         ?: return@newProxyInstance method.invoke(sourceFlow, *invocationArgs)
-    // 同样换成可补发的 collector：这条输入被改写时保留系统原值，
-    // 设置变化后由 LockscreenNotificationReloadSlot 补发一次。
+    // 装饰为可重放的 Collector，以便配置热更新时主动触发重算
     val replayable = replayTargetFor(owner, classLoader, collectorClass, originalCollector, preferences)
     method.invoke(sourceFlow, replayable.proxy, *invocationArgs.drop(1).toTypedArray())
 }

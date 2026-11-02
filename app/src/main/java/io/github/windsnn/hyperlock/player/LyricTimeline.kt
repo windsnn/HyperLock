@@ -36,17 +36,15 @@ internal data class LockscreenLyricText(
 )
 
 /**
- * 歌词时间轴纯逻辑：行构建、当前行检索、副行选择、歌曲身份。
+ * 歌词时间轴纯逻辑：行构建、当前行检索、副行选择与歌曲身份判定。
  *
- * 刻意不依赖 Android 与词幕订阅端，方便离线/单测验证这部分的边界行为。
+ * 独立于 Android 运行时的纯数据计算，便于离线验证与单测覆盖。
  */
 internal object LyricTimeline {
-
     /**
-     * 把词幕歌词行转成时间轴可信的行。
+     * 将词幕歌词行解析归一化为时间轴可信行。
      *
-     * 与上游 `Song.normalize()` 的差异：`end` 缺失（`end <= begin`）时用下一行的 `begin`
-     * 补齐，而不是丢弃该行——部分提供端只给 `begin`，直接丢弃会让整首歌没有歌词。
+     * 当 end 缺失或无效时用下一行的 begin 补齐，避免丢弃仅提供起始时间的歌词行。
      */
     fun buildLines(raw: List<RichLyricLine>): List<LockscreenLyricLine> {
         if (raw.isEmpty()) return emptyList()

@@ -257,7 +257,7 @@ internal fun ServiceCard(online: Boolean) {
     }
 }
 
-/** 设备与系统环境卡片：一眼看出当前机型/系统是否处在适配范围内。 */
+/** 设备与系统兼容性状态卡片。 */
 @Composable
 internal fun DeviceCompatCard(compat: DeviceCompat) {
     val color = when (compat.level) {
@@ -367,7 +367,7 @@ internal fun ScopeGroup(
     }
 }
 
-/** 锁屏页统一的分组展开动画。 */
+/** 锁屏设置分组展开与收起动画过渡。 */
 @Composable
 internal fun ExpandGroup(visible: Boolean, content: @Composable AnimatedVisibilityScope.() -> Unit) {
     AnimatedVisibility(

@@ -13,7 +13,7 @@ import io.github.windsnn.hyperlock.settings.SOFT_GLASS_DEFAULT_OPACITY
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
-/** 快捷功能背景与迷你播放器背景共用的材质参数值。 */
+/** 快捷功能背景与迷你播放器背景共用的材质参数。 */
 internal data class MaterialSpec(
     val pureColor: Int,
     val pureOpacity: Int,
@@ -28,7 +28,7 @@ internal data class MaterialSpec(
     val softLuminance: Float,
 )
 
-/** 标题文案：默认取快捷功能背景一侧，播放器侧见 [PLAYER]。 */
+/** 标题文案配置：默认取快捷功能背景配置项，播放器配置见 [PLAYER]。 */
 internal data class MaterialParamTitles(
     val pureColorRes: Int = R.string.mat_bg_color,
     val pureOpacityRes: Int = R.string.mat_opacity,
@@ -60,8 +60,9 @@ internal data class MaterialParamTitles(
 }
 
 /**
- * 纯色 / 高级材质 / 柔光玻璃三档的参数块，快捷功能背景与迷你播放器背景共用同一实现。
- * 只有纯色档是否显示透明度由 [showPureOpacity] 控制（快捷侧显示，播放器侧不显示）。
+ * 纯色 / 高级材质 / 柔光玻璃通用参数调节组件。
+ *
+ * 由快捷功能背景与迷你播放器背景共用。[showPureOpacity] 控制纯色模式下是否显示透明度调节。
  */
 @Composable
 internal fun MaterialParamGroup(

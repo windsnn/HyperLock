@@ -4,12 +4,10 @@ import android.content.Context
 import android.os.Build
 
 /**
- * 设备与系统环境检测。
+ * 设备与系统环境兼容性判定。
  *
- * 模块的 hook 依赖澎湃 OS 系统界面（SystemUI）与息屏（AOD）的内部实现，
- * 所以判定只看「是不是适配所用的澎湃 OS 4 这一代」；
- * 具体版本号只用于展示，版本不一致时给一句备注，不因此改变结论——
- * 系统界面版本会随 OTA 变动，拿它当门槛只会把能用的机型挡在外面。
+ * 仅以系统代际（HyperOS 4）作为兼容性分级依据；
+ * 系统界面与息屏的具体构建版本仅作展示与基线参考。
  */
 internal data class DeviceCompat(
     val level: Level,
@@ -31,7 +29,7 @@ internal data class DeviceCompat(
         }
 }
 
-/** 适配与测试所用的系统界面版本，仅用于提示「未在测试版本上验证」。 */
+/** 模块适配基准版本，用于比对并提示未经充分测试的系统界面版本。 */
 internal const val BASELINE_SYSTEM_UI_VERSION = "17.03.260226.r"
 private const val SYSTEM_UI_PACKAGE = "com.android.systemui"
 private const val AOD_PACKAGE = "com.miui.aod"

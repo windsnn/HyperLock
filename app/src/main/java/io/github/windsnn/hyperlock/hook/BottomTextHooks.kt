@@ -29,10 +29,8 @@ internal fun HyperSystemUiModule.installLockscreenChargingTextHook(classLoader: 
                     runCatching {
                         val controller = rotateField.get(chain.thisObject) ?: return@runCatching
                         val hide = controller.javaClass.getMethod("hideIndication", Int::class.javaPrimitiveType)
+                        // HyperOS 的勿扰与通知计数由 NotificationNumStateView 独立渲染，不走此处轮播逻辑
                         if (mask and LOCKSCREEN_TEXT_CHARGING != 0) hide.invoke(controller, CHARGING_INDICATION_TYPE)
-                        // 本 ROM 的勿扰与通知计数不在 KeyguardIndicationController 的轮播集合里：
-                        // 它们由 NotificationNumStateView（zenView / notificationCountView）渲染，
-                        // 已由 installLockscreenBottomTextViewHook 处理，这里不再按文案猜测。
                     }.onFailure { error ->
                         hookLog(Log.ERROR, TAG, "Could not hide lockscreen charging text", error)
                     }
@@ -45,9 +43,7 @@ internal fun HyperSystemUiModule.installLockscreenChargingTextHook(classLoader: 
 }
 
 /**
- * HyperOS renders the DND and notification-count indications in a dedicated view rather
- * than through KeyguardIndicationController. Hook its refresh methods and hide the concrete
- * TextViews after the vendor code has updated their state.
+ * 拦截 NotificationNumStateView 的更新方法，在状态刷新后按配置隐藏对应控件。
  */
 internal fun HyperSystemUiModule.installLockscreenBottomTextViewHook(
     classLoader: ClassLoader,
@@ -74,8 +70,7 @@ internal fun HyperSystemUiModule.installLockscreenBottomTextViewHook(
                     result
                 }
         }
-        // The binder posts an animation after each state update. Its completion callback
-        // restores child visibility, so guard that shared animation helper as well.
+        // 拦截更新后的可见性动画，防止隐藏控件被动画完成回调重置为可见
         runCatching {
             val animateClass = classLoader.loadClass(NUM_STATE_VIEW_ANIMATE_EXT_CLASS)
             animateClass.declaredMethods

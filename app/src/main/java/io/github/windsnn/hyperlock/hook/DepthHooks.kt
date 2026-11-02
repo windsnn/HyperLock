@@ -23,18 +23,17 @@ internal fun HyperSystemUiModule.installDepthEffectHook(classLoader: ClassLoader
 }
 
 /**
- * DepthAvoidEvaluator 阈值的三段处理（AOD 与 SystemUI 同构，仅 id 前缀不同）：
- * 1. 在 `<clinit>` 创建 IMAGE_THRESHOLD 之前改写构造函数参数；
- * 2. `<clinit>` 结束后兜底再写一次 rate（类初始化可能晚于安装）；
- * 3. 安装时立即写一次，覆盖"hook 晚于类初始化"的情况。
+ * DepthAvoidEvaluator 阈值拦截：
+ * 1. 在 <clinit> 创建 IMAGE_THRESHOLD 前拦截构造函数参数；
+ * 2. 在 <clinit> 完成后兜底强制赋值 rate；
+ * 3. 安装时立即赋值以覆盖已初始化的情况。
  */
 internal fun HyperSystemUiModule.installDepthThresholdHooks(
     classLoader: ClassLoader,
     preferences: SharedPreferences,
     idStem: String,
 ) {
-    // Loading a class does not run its static initializer. Hook the constructor before
-    // DepthAvoidEvaluator creates IMAGE_THRESHOLD in <clinit>.
+    // 在 DepthAvoidEvaluator 初始化常量前拦截 Threshold 构造函数
     val thresholdClass = classLoader.loadClass(DEPTH_THRESHOLD_CLASS)
     val evaluatorClass = classLoader.loadClass(DEPTH_EVALUATOR_CLASS)
     attachHook(thresholdClass.getDeclaredConstructor(Double::class.javaPrimitiveType))
@@ -327,9 +326,7 @@ internal fun HyperSystemUiModule.installWallpaperCapabilityHooks(
 }
 
 /**
- * The AOD editor has its own wallpaper model and applies the same third-party checks again.
- * Keep this separate from TemplateApiImpl.isDefaultTheme(), which belongs to the global
- * theme soft-glass path and must retain its original semantics.
+ * 针对 AOD 编辑器壁纸模型与第三方壁纸校验注入 Hook，解除景深限制。
  */
 internal fun HyperSystemUiModule.installAodThirdPartyWallpaperDepthHook(
     classLoader: ClassLoader,

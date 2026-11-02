@@ -21,8 +21,7 @@ internal fun HyperSystemUiModule.installFingerprintIconVisualHook(
         val displayMethods = iconClass.declaredMethods.filter { method ->
             (method.name == "show" && method.parameterTypes.contentEquals(arrayOf(Boolean::class.javaPrimitiveType))) ||
                 (method.name == "showFingerprintIcon" && method.parameterCount == 0) ||
-                // A locked-again keyguard reuses the existing FOD window and only makes
-                // its animation surface opaque through this method.
+                // 重新锁屏时系统复用已有 FOD 窗口，仅通过 setGxzwIconOpaque 恢复不透明度
                 (method.name == "setGxzwIconOpaque" && method.parameterCount == 0)
         }
         check(displayMethods.isNotEmpty()) { "MiuiGxzwIconView display methods were not found" }
@@ -33,8 +32,7 @@ internal fun HyperSystemUiModule.installFingerprintIconVisualHook(
                 .intercept { chain ->
                     val result = chain.proceed()
                     if (fingerprintHideMode(preferences) == FINGERPRINT_HIDE_GLOBAL) {
-                        // The platform method only clears the animation/icon surface. The
-                        // FOD view remains attached and continues receiving touch events.
+                        // 清除图标绘制 Surface，保留 View 附着以维持触控响应
                         dismissIcon.invoke(chain.thisObject)
                     }
                     result
@@ -51,9 +49,9 @@ internal fun HyperSystemUiModule.fingerprintHideMode(preferences: SharedPreferen
         .coerceIn(FINGERPRINT_HIDE_NONE, FINGERPRINT_HIDE_GLOBAL)
 
 /**
- * HyperOS 4's animation manager is shared by lockscreen and in-app biometric prompts. The
- * target HyperOS 4 smali checks mKeyguardAuthen with if-eqz and applies the empty
- * resource/animation branch when it is true. Software FOD prompts keep the normal path.
+ * 拦截 HyperOS 指纹动画管理器。
+ *
+ * 仅在锁屏场景（mKeyguardAuthen == true）下返回空图标/空动画，应用内生物识别弹窗保持原有逻辑。
  */
 internal fun HyperSystemUiModule.installLockscreenFingerprintAnimationHook(
     classLoader: ClassLoader,
@@ -65,8 +63,7 @@ internal fun HyperSystemUiModule.installLockscreenFingerprintAnimationHook(
             .apply { isAccessible = true }
         val animItemMap = managerClass.getDeclaredField(MIUI_GXZW_ANIMATION_ITEMS_FIELD)
             .apply { isAccessible = true }
-        // Some HyperOS builds move these methods to a superclass or add an unused argument.
-        // Include the complete hierarchy and hook every matching overload.
+        // 兼容处理不同构建版本中可能存在的父类继承与重载变体
         val methods = buildList {
             var current: Class<*>? = managerClass
             while (current != null) {

@@ -37,7 +37,7 @@ import kotlin.math.PI
 import kotlin.math.pow
 import java.lang.ref.WeakReference
 
-/** Native lockscreen card; SystemUI owns media sessions and the final view hierarchy. */
+/** 原生锁屏迷你播放器控制器，管理卡片生命周期、排版定位与手势动效。 */
 internal class LockscreenMiniPlayerController(
     private val host: ViewGroup,
     private val leftShortcut: View,
@@ -143,8 +143,7 @@ internal class LockscreenMiniPlayerController(
     }
 
     init {
-        // The card is centered between the shortcuts and may be taller than the shortcut
-        // container's measured bounds. Keep the configured dp height from being clipped.
+        // 允许卡片高度超出快捷键容器范围，避免被父容器裁剪
         host.clipChildren = false
         host.clipToPadding = false
         unclipAncestors(host)
@@ -261,7 +260,7 @@ internal class LockscreenMiniPlayerController(
 
                     val maxOffset = if (fromRight) -dp(6.2f).toFloat() else dp(6.2f).toFloat()
                     val maxRotation = if (fromRight) 1.20f else -1.20f
-                    // 支点偏移：右侧撞击时支点偏左(0.12f)，使右边缘凹陷受挤；左侧撞击时支点偏右(0.88f)，使左边缘凹陷受挤
+                    // 支点偏移：根据撞击方向调整支点，使受挤外侧边缘凹陷
                     val pivotOffsetMultiplier = if (fromRight) -0.40f else 0.40f
                     val totalDurationMs = 600L
 
@@ -271,8 +270,7 @@ internal class LockscreenMiniPlayerController(
                         addUpdateListener { va ->
                             val fraction = (va.animatedValue as Float).coerceIn(0f, 1f)
                             val p = fraction.toDouble()
-                            // 物理冲量传递与接触延迟模型 (Impulse Phase Lag):
-                            // 前 30ms 快捷键飞越间隙尚未触碰，随后进入软接触与冲量吸收，并在 150ms 达到峰值形变
+                            // 接触延迟模型：前 30ms 为飞越间隙，随后进入软接触与冲量吸收并在 150ms 达到峰值形变
                             val p0 = 0.04
                             val wave = if (p < p0) {
                                 0.0f
@@ -289,9 +287,9 @@ internal class LockscreenMiniPlayerController(
                             squeezeScaleX = 1.0f - scaleReduction
                             // 泊松等容积呼吸: 横向受挤收缩时纵向自然微凸
                             squeezeScaleY = 1.0f + 0.40f * scaleReduction
-                            // 非对称受力支点偏移 (Asymmetric Pivot Bias): 受撞击外侧边缘凹陷更深
+                            // 非对称受力支点偏移：受撞击外侧边缘凹陷更深
                             squeezePivotXRatio = (0.5f + pivotOffsetMultiplier * wave).coerceIn(0.10f, 0.90f)
-                            // 悬浮流体受击微侧倾 (Dynamic Tilt Sway)
+                            // 悬浮流体受击微侧倾
                             squeezeRotation = maxRotation * wave
                             schedulePosition()
                         }
@@ -397,7 +395,7 @@ internal class LockscreenMiniPlayerController(
         }
         val customButton = findCustomizationButton(root)
         if (customButton == null) {
-            // onLongPress fires before the menu view has completed its first layout.
+            // 兜底处理初次长按触发时菜单视图尚未完成布局的时序
             animateCustomizationLift(true, -dp(64f).toFloat())
             return
         }
@@ -613,16 +611,14 @@ internal class LockscreenMiniPlayerController(
     }
 
     private fun refreshUnsafe() {
-        // NotificationMediaManager can publish a controller whose playback state is already
-        // destroyed. Do not call selectController() here: that method refreshes synchronously,
-        // and selecting an unusable bridge controller used to recurse until SystemUI crashed.
+        // NotificationMediaManager 发布的控制器可能已被销毁，此处不同步调用 selectController 避免死循环
         val platformController = LockscreenMediaBridge.controller
         if (platformController != null) {
             if (platformController.sessionToken != activeController?.sessionToken) {
                 setActiveController(platformController.takeIf(::isUsable))
             }
         } else {
-            // Fall back to active system sessions if the bridge controller is null
+            // 桥接控制器为空时降级退回活跃系统媒体会话
             val fallback = sessions?.getActiveSessions(null).orEmpty().firstOrNull(::isUsable)
             if (fallback != null) {
                 if (fallback.sessionToken != activeController?.sessionToken) {
@@ -648,8 +644,7 @@ internal class LockscreenMiniPlayerController(
         val view = player ?: LockscreenMiniPlayerView(context).also {
             player = it
             it.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> schedulePosition() }
-            // The first refresh can happen before the shortcut row receives its final layout.
-            // Start with the configured dimensions instead of a transient default size.
+            // 首次刷新在快捷键行完成最终布局前发生，优先采用设定尺寸
             host.addView(
                 it,
                 ViewGroup.LayoutParams(
@@ -918,13 +913,11 @@ internal class LockscreenMiniPlayerController(
     }
 
     private fun togglePlaybackSafely() {
-        // TransportControls is a Binder proxy. A player can disappear between the click and
-        // the command, so dispatch on the SystemUI looper and contain every Binder failure.
+        // TransportControls 为 Binder 代理，在主线程调度并捕获 IPC 异常
         runCatching {
             mainHandler.post {
                 runCatching {
-                    // Refresh the session list at click time. Media apps can replace their
-                    // session without emitting an active-session callback to SystemUI.
+                    // 点击时实时刷新会话列表，应对未及时通知 SystemUI 的媒体应用
                     val current = sessions?.getActiveSessions(null).orEmpty()
                     if (current.isNotEmpty()) selectController(current)
                     val controller = LockscreenMediaBridge.controller ?: activeController
@@ -945,8 +938,7 @@ internal class LockscreenMiniPlayerController(
     }
 
     private fun skipTrackSafely(next: Boolean) {
-        // Use the active session when possible so the command follows the media app selected by
-        // SystemUI, then fall back to the standard media key for sessions without transport APIs.
+        // 优先使用当前活跃会话，失败则降级发送标准多媒体按键事件
         runCatching {
             mainHandler.post {
                 runCatching {
@@ -1038,9 +1030,7 @@ internal class LockscreenMiniPlayerController(
             updated.width = width
             updated.height = height
             view.layoutParams = updated
-            // Do not calculate against the old child bounds. The parent will assign new
-            // left/top/width/height during the next layout pass, then the layout listener above
-            // will apply the final translation.
+            // 等待下一轮布局分配最新宽高后再计算最终平移偏移量
             schedulePosition()
             return
         }
@@ -1052,7 +1042,7 @@ internal class LockscreenMiniPlayerController(
         }
         view.pivotX = actualWidth * squeezePivotXRatio
         view.pivotY = actualHeight / 2f
-        // Preserve the requested center across parent layout passes.
+        // 锚定中心点，保持在父容器重新布局期间相对中心不变
         baseTranslationX = centerX - actualWidth / 2f - view.left
         baseTranslationY = centerY - actualHeight / 2f - view.top
         view.setBaseTranslation(baseTranslationX, baseTranslationY + customizationLift)

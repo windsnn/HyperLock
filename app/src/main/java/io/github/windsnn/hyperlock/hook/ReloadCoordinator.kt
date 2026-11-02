@@ -73,8 +73,7 @@ internal fun HyperSystemUiModule.registerReloadReceiver(
                 }
             }
             val filter = IntentFilter(ACTION_RELOAD_SETTINGS)
-            // 动态注册在 SystemUI 进程，跨应用接收必须导出；用 signature 级权限限制发送方，
-            // 防止任意第三方应用反复触发重载（见模块 AndroidManifest）。
+            // 动态注册在 SystemUI 进程，使用 signature 级别自定义权限校验发送方以防止滥用
             appContext.registerReceiver(
                 receiver,
                 filter,
@@ -105,8 +104,7 @@ internal fun HyperSystemUiModule.scheduleDebouncedReload(
 
 internal fun HyperSystemUiModule.reloadLockscreenSettings(classLoader: ClassLoader, preferences: SharedPreferences) {
     HyperLog.isVerbose = preferences.getBoolean(KEY_VERBOSE_LOG, false)
-    // 各功能在安装时把槽位登记进来（见 SettingsReloadSlots.kt），这里只负责顺序与失败隔离：
-    // 一个槽位抛异常不能阻断后面的槽位。
+    // 顺序执行重载槽位，单项异常不阻断后续槽位执行
     for (slot in snapshotSettingsReloadSlots()) {
         runCatching {
             slot.reload(preferences, classLoader)

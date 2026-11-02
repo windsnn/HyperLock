@@ -33,9 +33,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * State captured before the PIN circle replaces the stock key visuals, so turning the feature
- * off again restores the vendor NumPadKey background and letter labels instead of leaving the
- * module's optical centring behind.
+ * 保存应用 PIN 键圆形视觉样式前的原生状态，用于关闭功能时还原。
  */
 internal class LockscreenPinKeyState(
     val layoutListener: View.OnLayoutChangeListener,
@@ -43,8 +41,7 @@ internal class LockscreenPinKeyState(
 )
 
 internal class LockscreenPinLabelSnapshot(view: TextView) {
-    // 快照被 WeakHashMap<ViewGroup, List<…>> 当作 value 保存，而 TextView 通过 mParent
-    // 反向引用 key ViewGroup；这里强引用后代会让 WeakHashMap 的条目永远无法回收。
+    // 持有弱引用避免内存泄漏
     private val viewRef = WeakReference(view)
     val view: TextView? get() = viewRef.get()
     private val includeFontPadding = view.includeFontPadding
@@ -72,7 +69,7 @@ internal class LockscreenPinLabelSnapshot(view: TextView) {
         view.gravity = gravity
         view.setPadding(paddingLeft, paddingTop, paddingRight, paddingBottom)
         view.ellipsize = ellipsize
-        // isSingleLine has to be written before maxLines: it resets maxLines on its own.
+        // isSingleLine 会重置 maxLines，因此必须优先赋值
         view.isSingleLine = singleLine
         view.maxLines = maxLines
         view.text = text
@@ -105,8 +102,7 @@ internal fun HyperSystemUiModule.installLockscreenPinCircleBackgroundHook(
                 val result = chain.proceed()
                 val pinView = chain.thisObject as? View
                 pinView?.let { view ->
-                    // Keep the view so a later preference change can be applied without
-                    // waiting for the keyguard to inflate the PIN view again.
+                    // 缓存 View 引用以支持配置动态热重载
                     lockscreenPinRoots += view
                     view.post {
                         if (!preferences.getBoolean(KEY_LOCKSCREEN_PIN_CIRCLE_BACKGROUND_ENABLED, false)) {
@@ -130,7 +126,7 @@ internal class LockscreenPinCircleReloadSlot(private val module: HyperSystemUiMo
     override fun reload(preferences: SharedPreferences, classLoader: ClassLoader) {
         val roots = synchronized(lockscreenPinRoots) { lockscreenPinRoots.toList() }
         for (root in roots) {
-            // Applied unconditionally: a detached PIN view still runs its queued work on attach.
+            // 无论当前是否挂载均执行应用，排队任务将在挂载时生效
             runCatching {
                 if (preferences.getBoolean(KEY_LOCKSCREEN_PIN_CIRCLE_BACKGROUND_ENABLED, false)) {
                     module.installLockscreenPinCircleBackgrounds(root, classLoader, preferences)
@@ -166,8 +162,7 @@ internal fun HyperSystemUiModule.installLockscreenPinCircleBackgrounds(
                 isFocusable = false
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 scaleType = ImageView.ScaleType.FIT_XY
-                // The compositor needs drawable content to register the view. Keep this as
-                // the low-alpha fallback; the Bionics shader is rendered in the same bounds.
+                // 合成器需要有效 Drawable 触发绘制，此处设置低透明度兜底背景，Shader 渲染于相同边界
                 setImageDrawable(
                     GradientDrawable().apply {
                         shape = GradientDrawable.OVAL
@@ -182,8 +177,7 @@ internal fun HyperSystemUiModule.installLockscreenPinCircleBackgrounds(
                         setColor(Color.WHITE)
                     },
                 )
-                // Draw the edge in the foreground so it remains anti-aliased even when the
-                // native glass renderer draws its own rounded-rectangle clip.
+                // 在 Foreground 绘制边缘描边以维持抗锯齿效果
                 foreground = LayerDrawable(
                     arrayOf(
                         GradientDrawable().apply {
@@ -197,8 +191,7 @@ internal fun HyperSystemUiModule.installLockscreenPinCircleBackgrounds(
                         ripple,
                     ),
                 )
-                // Keep the outline for the native glass material, but do not let the
-                // framework hard-clip the image/foreground edge to it.
+                // 保留 Outline 供原生玻璃材质识别边界，避免裁剪
                 clipToOutline = false
                 outlineProvider = object : ViewOutlineProvider() {
                     override fun getOutline(target: View, outline: Outline) {
@@ -208,8 +201,7 @@ internal fun HyperSystemUiModule.installLockscreenPinCircleBackgrounds(
                 }
             }
             keyGroup.addView(material, 0, ViewGroup.LayoutParams(diameter, diameter))
-            // NumPadKey's stock background owns the expanding press animation. Remove it so
-            // the material layer's circular foreground ripple is the only visual feedback.
+            // 清除 NumPadKey 原生按压扩散背景，改由圆形涟漪提供视觉反馈
             val previousState = lockscreenPinKeyStates.remove(key)
             previousState?.let { key.removeOnLayoutChangeListener(it.layoutListener) }
             val stockBackground = if (previousState != null) {
@@ -222,8 +214,7 @@ internal fun HyperSystemUiModule.installLockscreenPinCircleBackgrounds(
             fun placeMaterial(target: View, layer: View) {
                 val size = minOf(target.width, target.height)
                 if (size <= 0) return
-                // setLayoutParams() calls requestLayout() even when the same instance is
-                // assigned back, so only write it when the size actually changed.
+                // 仅在尺寸变更时更新 layoutParams，避免触发不必要的 requestLayout
                 val params = layer.layoutParams
                 if (params == null || params.width != size || params.height != size) {
                     val updated = params ?: ViewGroup.LayoutParams(size, size)
@@ -240,12 +231,10 @@ internal fun HyperSystemUiModule.installLockscreenPinCircleBackgrounds(
                     layer.invalidateOutline()
                 }
             }
-            // 监听器只允许通过弱引用访问视图：它被 WeakHashMap<View, LockscreenPinKeyState>
-            // 当 value 保存，强引用 key 会让每个展开过的 PIN 视图都无法回收。
+            // 仅通过弱引用持有 View，避免泄漏
             val keyRef = WeakReference(key)
             val materialRef = WeakReference(material)
-            // Writing layout properties from a layout callback queues another traversal, so
-            // only react to real bounds changes and do the work after the pass has finished.
+            // 仅在真实尺寸变更时触发重新布局
             val layoutListener = object : View.OnLayoutChangeListener {
                 override fun onLayoutChange(
                     changed: View,
@@ -270,7 +259,7 @@ internal fun HyperSystemUiModule.installLockscreenPinCircleBackgrounds(
                         val currentTarget = keyRef.get() ?: return@post
                         val layer = materialRef.get() ?: return@post
                         if (!currentTarget.isAttachedToWindow) return@post
-                        // Skip work queued before the circle was switched off again.
+                        // 跳过功能已关闭后的遗留任务
                         if (lockscreenPinKeyStates[currentTarget]?.layoutListener !== self) return@post
                         placeMaterial(currentTarget, layer)
                         (currentTarget as? ViewGroup)?.let { configureLockscreenPinLabels(it) }
@@ -287,9 +276,7 @@ internal fun HyperSystemUiModule.installLockscreenPinCircleBackgrounds(
             lockscreenPinKeyStates[key] = LockscreenPinKeyState(layoutListener, stockBackground)
             configureLockscreenPinLabels(keyGroup)
             runCatching {
-                // Preserve the original blend and bloom, but only use this path to prepare
-                // the window-blur compositor. A non-zero backdrop radius stayed active
-                // underneath Bionics and caused the visible second blur.
+                // 保留混合与高光但置零背景模糊半径，防止与 Bionics 叠加形成双重模糊
                 applyLegacyBackdropMaterial(
                     view = material,
                     opacity = DEFAULT_ADVANCED_MATERIAL_OPACITY,
@@ -320,7 +307,7 @@ internal fun HyperSystemUiModule.installLockscreenPinCircleBackgrounds(
     )
 }
 
-/** Reverts everything [installLockscreenPinCircleBackgrounds] changed on an inflated PIN view. */
+/** 还原由 [installLockscreenPinCircleBackgrounds] 所做的全部 PIN 键视图修改。 */
 internal fun HyperSystemUiModule.removeLockscreenPinCircleBackgrounds(root: View) {
     var touched = false
     lockscreenPinKeys(root).forEach { key ->
@@ -343,8 +330,7 @@ internal fun HyperSystemUiModule.removeLockscreenPinCircleBackgrounds(root: View
             touched = true
         }
     }
-    // Row spacing only exists while the circle background is enabled, and untouched rows must
-    // keep whatever translation the vendor applied.
+    // 仅在曾修改过行间距时执行归零复原，避免覆盖原生偏移
     if (touched) applyLockscreenPinRowSpacing(root = root, spacingDp = 0f)
 }
 
@@ -380,8 +366,7 @@ internal fun HyperSystemUiModule.configureLockscreenPinLabels(key: ViewGroup) {
     }
     visit(key)
 
-    // Captured before the first write so the stock labels can be restored when the circle
-    // background is switched off again.
+    // 首次修改前捕获快照，用于功能关闭时还原原生标签
     if (!lockscreenPinLabelSnapshots.containsKey(key)) {
         lockscreenPinLabelSnapshots[key] = listOfNotNull(digitTextView, klondikeTextView)
             .map { LockscreenPinLabelSnapshot(it) }
@@ -400,8 +385,7 @@ internal fun HyperSystemUiModule.configureLockscreenPinLabels(key: ViewGroup) {
         kv.gravity = Gravity.CENTER
         kv.setPadding(0, 0, 0, 0)
         kv.ellipsize = null
-        // isSingleLine has no "value already matches" guard and resets maxLines, so
-        // normalise it once per view instead of on every call.
+        // isSingleLine 会内部重置 maxLines，故仅首次设置
         if (lockscreenPinKlondikeNormalized.add(kv)) {
             kv.isSingleLine = false
         }
@@ -412,8 +396,7 @@ internal fun HyperSystemUiModule.configureLockscreenPinLabels(key: ViewGroup) {
             kv.visibility = View.INVISIBLE
             kv.background = null
             kv.setTextColor(Color.TRANSPARENT)
-            // TextView.setText() has no "same text" fast path; writing it every pass can
-            // reach checkForRelayout() and request another layout.
+            // 避免重复写入相同文本触发 requestLayout
             if (kv.text.toString() != "ABC") {
                 kv.text = "ABC"
             }
@@ -458,8 +441,7 @@ internal fun HyperSystemUiModule.configureLockscreenPinLabels(key: ViewGroup) {
             val horizontalNudge = -0.5f * density
             val digitOpticalX = dv.leftAlignedTextOffset(maxHorizontalTextOffset) + horizontalNudge
 
-            // Keep the digit and its label as one vertical block. Horizontal centring uses
-            // the unused width on the left; the HyperOS text view aligns text at its left.
+            // 保持数字与副标题垂直对齐居中
             dv.setTranslationIfChanged(
                 circleCenterX - (dv.left + dv.width / 2f) + digitOpticalX,
                 blockCenterOffsetY,
@@ -485,7 +467,7 @@ internal fun View.setTranslationIfChanged(x: Float, y: Float) {
     }
 }
 
-/** Returns the positive offset needed to centre left-aligned text inside its view box. */
+/** 计算左对齐文本在 View 内部居中所需的正向水平偏移量。 */
 internal fun TextView.leftAlignedTextOffset(maxOffset: Float): Float {
     val textLayout = layout ?: return 0f
     if (textLayout.lineCount == 0) return 0f
@@ -508,7 +490,7 @@ internal fun HyperSystemUiModule.applyLockscreenPinRowSpacing(root: View, spacin
             root.resources.displayMetrics.density
         ).roundToInt().toFloat()
     LOCKSCREEN_PIN_ROW_IDS.forEachIndexed { index, id ->
-        // Keep row4 fixed so positive spacing expands upward, away from the fingerprint area.
+        // 固定第 4 行，正间距向上展开避开指纹区域
         rows[id]?.translationY = -spacingPx * (LOCKSCREEN_PIN_ROW_IDS.lastIndex - index)
     }
 }
