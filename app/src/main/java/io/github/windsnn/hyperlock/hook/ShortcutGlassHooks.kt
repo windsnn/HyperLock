@@ -308,9 +308,20 @@ internal fun HyperSystemUiModule.installShortcutGlassBackgrounds(
             0,
             FrameLayout.LayoutParams(diameter, diameter, Gravity.CENTER),
         )
+        for (index in 0 until shortcutContainer.childCount) {
+            val child = shortcutContainer.getChildAt(index)
+            if (child.tag != SHORTCUT_GLASS_TAG) {
+                (child.layoutParams as? FrameLayout.LayoutParams)?.let { lp ->
+                    if (lp.gravity != Gravity.CENTER) {
+                        lp.gravity = Gravity.CENTER
+                        child.layoutParams = lp
+                    }
+                }
+            }
+        }
 
         applyShortcutIconColorMode(shortcutContainer, shortcutIconColorMode(preferences))
-        bindShortcutBounceAnimation(shortcutContainer)
+        bindShortcutBounceAnimation(shortcutContainer, preferences)
         shortcutContainer.requestLayout()
         shortcutContainer.invalidate()
     }
@@ -325,6 +336,58 @@ internal fun HyperSystemUiModule.installShortcutGlassBackgrounds(
 private val hookedShortcutTipsClassLoaders = Collections.synchronizedSet(
     Collections.newSetFromMap(WeakHashMap<ClassLoader, Boolean>()),
 )
+private val hookedShortcutAnimClassLoaders = Collections.synchronizedSet(
+    Collections.newSetFromMap(WeakHashMap<ClassLoader, Boolean>()),
+)
+private val shortcutAnimViews = Collections.synchronizedSet(
+    Collections.newSetFromMap(WeakHashMap<View, Boolean>()),
+)
+private val animViewToBottomIcon = Collections.synchronizedMap(
+    WeakHashMap<View, ImageView>(),
+)
+@Volatile private var latestShortcutPreferences: SharedPreferences? = null
+
+internal fun shortcutIconTargetScale(preferences: SharedPreferences): Float {
+    val iconEnabled = preferences.getBoolean(KEY_LOCKSCREEN_SHORTCUT_ICON_SIZE_ENABLED, false)
+    if (!iconEnabled) return 1.0f
+    val iconSizeDp = preferences.getFloat(KEY_LOCKSCREEN_SHORTCUT_ICON_SIZE, 32f).coerceIn(20f, 56f)
+    return (iconSizeDp / 32f).coerceIn(0.6f, 1.75f)
+}
+
+/**
+ * 计算锁屏底部真实快捷图标在屏幕坐标系下的未缩放静止中心点，不受按压回弹缩放或图标尺寸缩放影响。
+ */
+internal fun computeShortcutIconRestingCenter(iconView: View): Pair<Float, Float>? {
+    if (iconView.width <= 0 || iconView.height <= 0) return null
+    val shortcutContainer = iconView.parent as? View ?: return null
+    if (shortcutContainer.width <= 0 || shortcutContainer.height <= 0) return null
+    if (shortcutContainer.isLayoutRequested || iconView.isLayoutRequested) return null
+    val normalLayout = shortcutContainer.parent as? View ?: return null
+    val loc = IntArray(2)
+    normalLayout.getLocationOnScreen(loc)
+    val centerX = loc[0] + shortcutContainer.left + iconView.left + iconView.width / 2f
+    val centerY = loc[1] + shortcutContainer.top + iconView.top + iconView.height / 2f
+    return centerX to centerY
+}
+
+internal fun HyperSystemUiModule.findShortcutIconBySide(isLeft: Boolean): ImageView? {
+    val targetContainerId = if (isLeft) "shortcut_view_left_layout" else "shortcut_view_right_layout"
+    val targetIconId = if (isLeft) "shortcut_view_left" else "shortcut_view_right"
+    val roots = synchronized(shortcutRoots) { shortcutRoots.toList() }
+    for (root in roots) {
+        if (!root.isAttachedToWindow && root.parent == null) continue
+        val container = findShortcutContainers(root).firstOrNull { it.idName() == targetContainerId } ?: continue
+        for (i in 0 until container.childCount) {
+            val child = container.getChildAt(i)
+            if (child is ImageView && child.tag != SHORTCUT_GLASS_TAG &&
+                (child.idName() == targetIconId || child.idName() == null)
+            ) {
+                return child
+            }
+        }
+    }
+    return null
+}
 
 internal fun findMiniPlayerControllerForShortcut(shortcutView: View?): LockscreenMiniPlayerController? {
     synchronized(lockscreenMiniPlayerControllers) {
@@ -341,10 +404,18 @@ internal fun findMiniPlayerControllerForShortcut(shortcutView: View?): Lockscree
  * 直接 Hook 系统原生 [com.miui.keyguard.shortcuts.controller.ShortcutViewLayoutController] 的提示动画构建与启动，
  * 在系统按钮弹起动画真正启动/取消的同一帧同步触发或取消迷你播放器挤压形变。
  */
-internal fun HyperSystemUiModule.ensureShortcutTipsAnimHook(shortcutContainer: ViewGroup): Boolean {
+internal fun HyperSystemUiModule.ensureShortcutTipsAnimHook(
+    shortcutContainer: ViewGroup,
+    preferences: SharedPreferences? = latestShortcutPreferences,
+): Boolean {
+    if (preferences != null) {
+        latestShortcutPreferences = preferences
+        ensureShortcutPluginAnimHooks(shortcutContainer, preferences)
+    }
     val candidates = buildList {
         shortcutContainer.context?.classLoader?.let(::add)
         readInstanceField(lastShortcutController, "shortcutPlugin")?.javaClass?.classLoader?.let(::add)
+        readInstanceField(lastShortcutController, "miuiShortcutPlugin")?.javaClass?.classLoader?.let(::add)
     }.distinct()
 
     for (loader in candidates) {
@@ -406,6 +477,28 @@ internal fun HyperSystemUiModule.ensureShortcutTipsAnimHook(shortcutContainer: V
                     })
                     result
                 }
+
+            val shortcutViewLayoutField = runCatching {
+                controllerClass.getDeclaredField("shortcutViewLayout").apply { isAccessible = true }
+            }.getOrNull()
+            listOf("updateHorizontalMargin", "updateShortcutFixedSize").forEach { methodName ->
+                controllerClass.declaredMethods.firstOrNull {
+                    it.name == methodName && it.parameterCount == 0
+                }?.let { method ->
+                    attachHook(method)
+                        .setExceptionMode(ExceptionMode.PROTECTIVE)
+                        .setId("lockscreen-shortcut-layout-$methodName:${loader.hashCode()}")
+                        .intercept { chain ->
+                            val result = chain.proceed()
+                            val prefs = latestShortcutPreferences ?: return@intercept result
+                            val layout = runCatching {
+                                shortcutViewLayoutField?.get(chain.thisObject) as? View
+                            }.getOrNull() ?: return@intercept result
+                            runCatching { applyLockscreenShortcutGeometry(layout, prefs) }
+                            result
+                        }
+                }
+            }
             true
         }.getOrElse { error ->
             hookLog(Log.WARN, TAG, "Could not hook ShortcutViewLayoutController in $loader", error)
@@ -419,8 +512,334 @@ internal fun HyperSystemUiModule.ensureShortcutTipsAnimHook(shortcutContainer: V
     return false
 }
 
-internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: ViewGroup) {
-    ensureShortcutTipsAnimHook(shortcutContainer)
+/**
+ * 同步 [com.miui.keyguard.shortcuts.view.BaseShortcutAnimView] 替身视图的初始中心坐标、图标缩放比例与图标着色，
+ * 修复修改快捷按钮边距或图标大小后滑动展开/取消回弹末尾出现的位置跳变与尺寸不一致。
+ */
+internal fun HyperSystemUiModule.ensureShortcutPluginAnimHooks(
+    shortcutContainer: ViewGroup,
+    preferences: SharedPreferences,
+): Boolean {
+    latestShortcutPreferences = preferences
+    val candidates = buildList {
+        shortcutContainer.context?.classLoader?.let(::add)
+        readInstanceField(lastShortcutController, "shortcutPlugin")?.javaClass?.classLoader?.let(::add)
+        readInstanceField(lastShortcutController, "miuiShortcutPlugin")?.javaClass?.classLoader?.let(::add)
+    }.distinct()
+
+    for (loader in candidates) {
+        if (loader in hookedShortcutAnimClassLoaders) return true
+        val installed = runCatching {
+            val animViewClass = loader.loadClass(BASE_SHORTCUT_ANIM_VIEW_CLASS)
+            val animControllerClass = loader.loadClass(BASE_SHORTCUT_ANIM_CONTROLLER_CLASS)
+            val moveControllerClass = runCatching { loader.loadClass(SHORTCUT_MOVE_CONTROLLER_CLASS) }.getOrNull()
+
+            val currentShortcutIconField = animViewClass.getDeclaredField("currentShortcutIcon").apply {
+                isAccessible = true
+            }
+            val initCenterXField = animViewClass.getDeclaredField("iconCircleInitCenterX").apply {
+                isAccessible = true
+            }
+            val initCenterYField = animViewClass.getDeclaredField("iconCircleInitCenterY").apply {
+                isAccessible = true
+            }
+            val centerXField = animViewClass.getDeclaredField("iconCircleCenterX").apply {
+                isAccessible = true
+            }
+            val centerYField = animViewClass.getDeclaredField("iconCircleCenterY").apply {
+                isAccessible = true
+            }
+            val screenWidthField = animViewClass.getDeclaredField("screenWidth").apply {
+                isAccessible = true
+            }
+            val screenHeightField = animViewClass.getDeclaredField("screenHeight").apply {
+                isAccessible = true
+            }
+            val iconWidthField = animViewClass.getDeclaredField("iconWidth").apply {
+                isAccessible = true
+            }
+            val iconHeightField = animViewClass.getDeclaredField("iconHeight").apply {
+                isAccessible = true
+            }
+            val iconViewField = animViewClass.getDeclaredField("iconView").apply {
+                isAccessible = true
+            }
+
+            val bottomShortcutViewField = animControllerClass.getDeclaredField("bottomShortcutView").apply {
+                isAccessible = true
+            }
+            val getShortcutAnimViewMethod = animControllerClass.declaredMethods.firstOrNull {
+                it.name == "getShortcutAnimView" && it.parameterCount == 0
+            }?.apply { isAccessible = true }
+
+            fun resolveInitCenters(animView: View, prefs: SharedPreferences): Pair<Float, Float>? {
+                val iconEnumName = (currentShortcutIconField.get(animView) as? Enum<*>)?.name ?: return null
+                if (iconEnumName != "LEFT" && iconEnumName != "RIGHT") return null
+                val isLeft = iconEnumName == "LEFT"
+                val expectedId = if (isLeft) "shortcut_view_left" else "shortcut_view_right"
+                val realIcon = animViewToBottomIcon[animView]?.takeIf {
+                    it.isAttachedToWindow && it.idName() == expectedId
+                } ?: findShortcutIconBySide(isLeft)
+
+                if (realIcon != null) {
+                    computeShortcutIconRestingCenter(realIcon)?.let { return it }
+                }
+
+                if (!prefs.getBoolean(KEY_LOCKSCREEN_SHORTCUT_SPACING_ENABLED, false)) return null
+                val screenW = screenWidthField.getInt(animView)
+                val screenH = screenHeightField.getInt(animView)
+                val iconW = iconWidthField.getInt(animView)
+                val iconH = iconHeightField.getInt(animView)
+                if (screenW <= 0 || screenH <= 0 || iconW <= 0 || iconH <= 0) return null
+                val density = animView.resources.displayMetrics.density
+                val spacing = (prefs.getFloat(KEY_LOCKSCREEN_SHORTCUT_SPACING, 0f).coerceIn(-10f, 40f) *
+                    density + 0.5f).toInt().toFloat()
+                val cx = if (isLeft) spacing + iconW / 2f else screenW - spacing - iconW / 2f
+                val cy = screenH - spacing - iconH / 2f
+                return cx to cy
+            }
+
+            fun syncAnimViewInitCenter(animView: View) {
+                shortcutAnimViews += animView
+                val prefs = latestShortcutPreferences ?: preferences
+                val (cx, cy) = resolveInitCenters(animView, prefs) ?: return
+                initCenterXField.setFloat(animView, cx)
+                initCenterYField.setFloat(animView, cy)
+            }
+
+            fun syncAnimIconLayoutAndAppearance(animView: View) {
+                shortcutAnimViews += animView
+                if (animView is ViewGroup) {
+                    animView.clipChildren = false
+                    animView.clipToPadding = false
+                }
+                val prefs = latestShortcutPreferences ?: preferences
+                resolveInitCenters(animView, prefs)?.let { (cx, cy) ->
+                    initCenterXField.setFloat(animView, cx)
+                    initCenterYField.setFloat(animView, cy)
+                }
+                val animIconView = iconViewField.get(animView) as? ImageView ?: return
+                val iconW = iconWidthField.getInt(animView)
+                val iconH = iconHeightField.getInt(animView)
+                val initCx = initCenterXField.getFloat(animView)
+                val initCy = initCenterYField.getFloat(animView)
+
+                // 将替身图标的布局基准固定为左上角 (0, 0)，使 setX/setY 直接对应绝对坐标，消除首次/切换左右按钮时 onLayout 引发的单帧偏移
+                (animIconView.layoutParams as? FrameLayout.LayoutParams)?.let { lp ->
+                    lp.gravity = Gravity.TOP or Gravity.LEFT
+                    lp.leftMargin = 0
+                    lp.topMargin = 0
+                    lp.rightMargin = 0
+                    lp.bottomMargin = 0
+                    lp.marginStart = 0
+                    lp.marginEnd = 0
+                }
+                if (iconW > 0 && iconH > 0) {
+                    animIconView.layout(0, 0, iconW, iconH)
+                    animIconView.pivotX = iconW / 2f
+                    animIconView.pivotY = iconH / 2f
+                    if (initCx > 0f && initCy > 0f) {
+                        animIconView.x = initCx - iconW / 2f
+                        animIconView.y = initCy - iconH / 2f
+                    }
+                }
+                val targetScale = shortcutIconTargetScale(prefs)
+                animIconView.scaleX = targetScale
+                animIconView.scaleY = targetScale
+                applyShortcutIconColor(animIconView, shortcutIconColorMode(prefs))
+            }
+
+            animViewClass.declaredMethods.firstOrNull {
+                it.name == "updateIconInitCenterX" && it.parameterCount == 0
+            }?.let { method ->
+                attachHook(method)
+                    .setExceptionMode(ExceptionMode.PROTECTIVE)
+                    .setId("lockscreen-shortcut-anim-init-cx:${loader.hashCode()}")
+                    .intercept { chain ->
+                        val result = chain.proceed()
+                        (chain.thisObject as? View)?.let(::syncAnimViewInitCenter)
+                        result
+                    }
+            }
+
+            animViewClass.declaredMethods.firstOrNull {
+                it.name == "updateSizeForScreenSizeChange" && it.parameterCount == 0
+            }?.let { method ->
+                attachHook(method)
+                    .setExceptionMode(ExceptionMode.PROTECTIVE)
+                    .setId("lockscreen-shortcut-anim-size-change:${loader.hashCode()}")
+                    .intercept { chain ->
+                        val result = chain.proceed()
+                        (chain.thisObject as? View)?.let(::syncAnimIconLayoutAndAppearance)
+                        result
+                    }
+            }
+
+            animViewClass.declaredMethods.firstOrNull {
+                it.name == "updateLayoutParams" && it.parameterCount == 0
+            }?.let { method ->
+                attachHook(method)
+                    .setExceptionMode(ExceptionMode.PROTECTIVE)
+                    .setId("lockscreen-shortcut-anim-lp:${loader.hashCode()}")
+                    .intercept { chain ->
+                        val result = chain.proceed()
+                        (chain.thisObject as? View)?.let(::syncAnimIconLayoutAndAppearance)
+                        result
+                    }
+            }
+
+            animViewClass.declaredMethods.firstOrNull {
+                it.name == "updateIconViewPositionAndScale" &&
+                    it.parameterCount == 1 &&
+                    it.parameterTypes[0] == Float::class.javaPrimitiveType
+            }?.let { method ->
+                attachHook(method)
+                    .setExceptionMode(ExceptionMode.PROTECTIVE)
+                    .setId("lockscreen-shortcut-anim-pos-scale:${loader.hashCode()}")
+                    .intercept { chain ->
+                        val result = chain.proceed()
+                        val animView = chain.thisObject as? View ?: return@intercept result
+                        val animIconView = iconViewField.get(animView) as? ImageView ?: return@intercept result
+                        val baseScale = chain.getArg(0) as? Float ?: 1.0f
+                        val prefs = latestShortcutPreferences ?: preferences
+                        val targetScale = shortcutIconTargetScale(prefs)
+                        val iconW = iconWidthField.getInt(animView)
+                        val iconH = iconHeightField.getInt(animView)
+                        if (iconW > 0 && iconH > 0) {
+                            if (animIconView.left != 0 || animIconView.top != 0 ||
+                                animIconView.width != iconW || animIconView.height != iconH
+                            ) {
+                                animIconView.layout(0, 0, iconW, iconH)
+                                animIconView.x = centerXField.getFloat(animView) - iconW / 2f
+                                animIconView.y = centerYField.getFloat(animView) - iconH / 2f
+                            }
+                            animIconView.pivotX = iconW / 2f
+                            animIconView.pivotY = iconH / 2f
+                        }
+                        val effectiveScale = baseScale * targetScale
+                        animIconView.scaleX = effectiveScale
+                        animIconView.scaleY = effectiveScale
+                        result
+                    }
+            }
+
+            animViewClass.declaredMethods.firstOrNull {
+                it.name == "reset" &&
+                    it.parameterCount == 1 &&
+                    it.parameterTypes[0] == String::class.java
+            }?.let { method ->
+                attachHook(method)
+                    .setExceptionMode(ExceptionMode.PROTECTIVE)
+                    .setId("lockscreen-shortcut-anim-reset:${loader.hashCode()}")
+                    .intercept { chain ->
+                        val result = chain.proceed()
+                        val animView = chain.thisObject as? View ?: return@intercept result
+                        val animIconView = iconViewField.get(animView) as? ImageView ?: return@intercept result
+                        val prefs = latestShortcutPreferences ?: preferences
+                        val targetScale = shortcutIconTargetScale(prefs)
+                        animIconView.scaleX = targetScale
+                        animIconView.scaleY = targetScale
+                        result
+                    }
+            }
+
+            animViewClass.declaredMethods.firstOrNull {
+                it.name == "setIconDarkMode" &&
+                    it.parameterCount == 1 &&
+                    it.parameterTypes[0] == Boolean::class.javaPrimitiveType
+            }?.let { method ->
+                attachHook(method)
+                    .setExceptionMode(ExceptionMode.PROTECTIVE)
+                    .setId("lockscreen-shortcut-anim-dark:${loader.hashCode()}")
+                    .intercept { chain ->
+                        val result = chain.proceed()
+                        val animView = chain.thisObject as? View ?: return@intercept result
+                        val animIconView = iconViewField.get(animView) as? ImageView ?: return@intercept result
+                        val prefs = latestShortcutPreferences ?: preferences
+                        applyShortcutIconColor(animIconView, shortcutIconColorMode(prefs))
+                        result
+                    }
+            }
+
+            animControllerClass.declaredMethods.firstOrNull {
+                it.name == "updateShortcutView" &&
+                    it.parameterCount == 1 &&
+                    it.parameterTypes[0] == Int::class.javaPrimitiveType
+            }?.let { method ->
+                attachHook(method)
+                    .setExceptionMode(ExceptionMode.PROTECTIVE)
+                    .setId("lockscreen-shortcut-anim-update-view:${loader.hashCode()}")
+                    .intercept { chain ->
+                        val result = chain.proceed()
+                        val controller = chain.thisObject ?: return@intercept result
+                        val bottomIcon = bottomShortcutViewField.get(controller) as? ImageView
+                        val animView = getShortcutAnimViewMethod?.invoke(controller) as? View
+                        if (animView != null) {
+                            if (bottomIcon != null) {
+                                animViewToBottomIcon[animView] = bottomIcon
+                                // 若外层容器处于按压缩小的中间态，开始滑动展开时平滑恢复至 1.0f
+                                (bottomIcon.parent as? View)?.let { container ->
+                                    if (container.scaleX != 1.0f || container.scaleY != 1.0f) {
+                                        container.animate().cancel()
+                                        container.animate()
+                                            .scaleX(1.0f)
+                                            .scaleY(1.0f)
+                                            .setDuration(160L)
+                                            .setInterpolator(DecelerateInterpolator())
+                                            .start()
+                                    }
+                                }
+                            }
+                            syncAnimIconLayoutAndAppearance(animView)
+                        }
+                        result
+                    }
+            }
+
+            moveControllerClass?.declaredMethods?.firstOrNull {
+                it.name == "isTouchOnIcon" &&
+                    it.parameterCount == 3 &&
+                    View::class.java.isAssignableFrom(it.parameterTypes[0]) &&
+                    it.parameterTypes[1] == Float::class.javaPrimitiveType &&
+                    it.parameterTypes[2] == Float::class.javaPrimitiveType
+            }?.let { method ->
+                attachHook(method)
+                    .setExceptionMode(ExceptionMode.PROTECTIVE)
+                    .setId("lockscreen-shortcut-move-touch-hit:${loader.hashCode()}")
+                    .intercept { chain ->
+                        val view = chain.getArg(0) as? View ?: return@intercept false
+                        if (!view.isShown || view.alpha != 1.0f) return@intercept false
+                        val x = chain.getArg(1) as? Float ?: return@intercept chain.proceed()
+                        val y = chain.getArg(2) as? Float ?: return@intercept chain.proceed()
+                        val center = computeShortcutIconRestingCenter(view) ?: return@intercept chain.proceed()
+                        val prefs = latestShortcutPreferences ?: preferences
+                        val glassRadiusPx = prefs.getFloat(
+                            KEY_LOCKSCREEN_SHORTCUT_GLASS_RADIUS,
+                            DEFAULT_SHORTCUT_GLASS_RADIUS,
+                        ).coerceIn(MIN_SHORTCUT_GLASS_RADIUS, MAX_SHORTCUT_GLASS_RADIUS) *
+                            view.resources.displayMetrics.density
+                        val hitRadius = maxOf(view.width / 2f, glassRadiusPx)
+                        Math.hypot((x - center.first).toDouble(), (y - center.second).toDouble()) <= hitRadius
+                    }
+            }
+            true
+        }.getOrElse { error ->
+            hookLog(Log.WARN, TAG, "Could not hook BaseShortcutAnimView in $loader", error)
+            false
+        }
+        if (installed) {
+            hookedShortcutAnimClassLoaders += loader
+            return true
+        }
+    }
+    return false
+}
+
+internal fun HyperSystemUiModule.bindShortcutBounceAnimation(
+    shortcutContainer: ViewGroup,
+    preferences: SharedPreferences? = latestShortcutPreferences,
+) {
+    ensureShortcutTipsAnimHook(shortcutContainer, preferences)
     if (shortcutContainer in bounceBoundContainers) return
     bounceBoundContainers += shortcutContainer
     val isRight = shortcutContainer.idName() == "shortcut_view_right_layout"
@@ -661,20 +1080,16 @@ internal fun HyperSystemUiModule.findShortcutContainers(root: View): List<FrameL
 }
 
 internal fun HyperSystemUiModule.applyLockscreenShortcutGeometry(root: View, preferences: SharedPreferences) {
+    latestShortcutPreferences = preferences
     val shortcuts = findShortcutContainers(root)
     if (shortcuts.size < 2) return
     val density = root.resources.displayMetrics.density
     val spacingEnabled = preferences.getBoolean(KEY_LOCKSCREEN_SHORTCUT_SPACING_ENABLED, false)
     val spacing = (preferences.getFloat(KEY_LOCKSCREEN_SHORTCUT_SPACING, 0f).coerceIn(-10f, 40f) *
         density + .5f).toInt()
-    val iconEnabled = preferences.getBoolean(KEY_LOCKSCREEN_SHORTCUT_ICON_SIZE_ENABLED, false)
-    val iconSizeDp = preferences.getFloat(KEY_LOCKSCREEN_SHORTCUT_ICON_SIZE, 32f).coerceIn(20f, 56f)
-    val targetScale = if (iconEnabled) {
-        (iconSizeDp / 32f).coerceIn(0.6f, 1.75f)
-    } else {
-        1.0f
-    }
+    val targetScale = shortcutIconTargetScale(preferences)
     shortcuts.forEachIndexed { index, shortcut ->
+        ensureShortcutPluginAnimHooks(shortcut, preferences)
         shortcut.clipChildren = false
         shortcut.clipToPadding = false
         var parent = shortcut.parent
@@ -710,13 +1125,24 @@ internal fun HyperSystemUiModule.applyLockscreenShortcutGeometry(root: View, pre
                 params.bottomMargin,
             )
             if (spacingEnabled) {
-                if (isLeft) params.leftMargin = spacing else params.rightMargin = spacing
+                if (isLeft) {
+                    params.leftMargin = spacing
+                    params.marginStart = spacing
+                } else {
+                    params.rightMargin = spacing
+                    params.marginEnd = spacing
+                }
                 params.bottomMargin = spacing
             } else {
                 params.leftMargin = originalMargins[0]
                 params.topMargin = originalMargins[1]
                 params.rightMargin = originalMargins[2]
                 params.bottomMargin = originalMargins[3]
+                if (isLeft) {
+                    params.marginStart = originalMargins[0]
+                } else {
+                    params.marginEnd = originalMargins[2]
+                }
             }
             if (before[0] != params.leftMargin || before[1] != params.topMargin ||
                 before[2] != params.rightMargin || before[3] != params.bottomMargin
@@ -734,6 +1160,12 @@ internal fun HyperSystemUiModule.applyLockscreenShortcutGeometry(root: View, pre
         }
         collect(shortcut)
         images.forEach { image ->
+            (image.layoutParams as? FrameLayout.LayoutParams)?.let { lp ->
+                if (lp.gravity != Gravity.CENTER) {
+                    lp.gravity = Gravity.CENTER
+                    image.layoutParams = lp
+                }
+            }
             image.scaleX = targetScale
             image.scaleY = targetScale
         }
@@ -814,13 +1246,17 @@ internal fun HyperSystemUiModule.registerShortcutColorCoordinatorListener(
     LockscreenColorCoordinator.addListener(object : LockscreenColorCoordinator.BottomColorListener {
         override fun onBottomDeepChanged(isBottomDeep: Boolean) {
             val roots = synchronized(shortcutRoots) { shortcutRoots.toList() }
-            for (root in roots) {
-                if (!root.isAttachedToWindow && root.parent == null) continue
-                val iconMode = shortcutIconColorMode(preferences)
-                if (iconMode == SHORTCUT_ICON_COLOR_AUTO) {
+            val iconMode = shortcutIconColorMode(preferences)
+            if (iconMode == SHORTCUT_ICON_COLOR_AUTO) {
+                for (root in roots) {
+                    if (!root.isAttachedToWindow && root.parent == null) continue
                     findShortcutContainers(root).forEach { container ->
                         applyShortcutIconColor(container, iconMode)
                     }
+                }
+                val animViews = synchronized(shortcutAnimViews) { shortcutAnimViews.toList() }
+                for (animView in animViews) {
+                    applyShortcutIconColor(animView, iconMode)
                 }
             }
         }

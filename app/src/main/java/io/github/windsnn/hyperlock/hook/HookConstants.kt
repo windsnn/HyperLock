@@ -66,6 +66,12 @@ internal const val MIUI_SHORTCUT_CONTROLLER_CLASS =
     "com.android.keyguard.shortcut.MiuiShortcutController"
 internal const val SHORTCUT_VIEW_LAYOUT_CONTROLLER_CLASS =
     "com.miui.keyguard.shortcuts.controller.ShortcutViewLayoutController"
+internal const val BASE_SHORTCUT_ANIM_CONTROLLER_CLASS =
+    "com.miui.keyguard.shortcuts.controller.BaseShortcutAnimController"
+internal const val BASE_SHORTCUT_ANIM_VIEW_CLASS =
+    "com.miui.keyguard.shortcuts.view.BaseShortcutAnimView"
+internal const val SHORTCUT_MOVE_CONTROLLER_CLASS =
+    "com.miui.keyguard.shortcuts.controller.ShortcutMoveController"
 internal const val KEYGUARD_PIN_VIEW_CLASS = "com.android.keyguard.KeyguardPINView"
 internal val LOCKSCREEN_PIN_KEY_IDS = setOf(
     "key0", "key1", "key2", "key3", "key4",
