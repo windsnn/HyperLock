@@ -76,9 +76,51 @@ internal class LockscreenTrackView(context: Context) : View(context) {
     }
 
     private var isDarkText: Boolean = false
+    private var artistStaggerDx: Float = 0f
+    private var artistStaggerAlpha: Float = 1f
+    private var staggerAnimator: android.animation.ValueAnimator? = null
 
     init {
         applyTheme()
+    }
+
+    fun startArtistStagger(fromDx: Float, durationMs: Long, startDelayMs: Long = 0L) {
+        staggerAnimator?.cancel()
+        artistStaggerDx = fromDx
+        artistStaggerAlpha = 0f
+        invalidate()
+        staggerAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = durationMs
+            startDelay = startDelayMs
+            interpolator = android.view.animation.PathInterpolator(0.22f, 1.0f, 0.36f, 1.0f)
+            addUpdateListener { va ->
+                val f = va.animatedValue as Float
+                artistStaggerDx = fromDx * (1f - f)
+                artistStaggerAlpha = f.coerceIn(0f, 1f)
+                invalidate()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (staggerAnimator === animation) {
+                        artistStaggerDx = 0f
+                        artistStaggerAlpha = 1f
+                        staggerAnimator = null
+                        invalidate()
+                    }
+                }
+            })
+            start()
+        }
+    }
+
+    fun resetArtistStagger() {
+        staggerAnimator?.cancel()
+        staggerAnimator = null
+        if (artistStaggerDx != 0f || artistStaggerAlpha != 1f) {
+            artistStaggerDx = 0f
+            artistStaggerAlpha = 1f
+            invalidate()
+        }
     }
 
     fun setContentTheme(isDarkText: Boolean) {
@@ -205,10 +247,11 @@ internal class LockscreenTrackView(context: Context) : View(context) {
         }
     }
 
-    override fun onDetachedFromWindow() {
+        override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         removeCallbacks(frameCallback)
         isFrameScheduled = false
+        resetArtistStagger()
     }
 
     private fun ensureShaders(w: Float) {
@@ -272,8 +315,11 @@ internal class LockscreenTrackView(context: Context) : View(context) {
             val artistBaseline = topY + titleH + lineGap - artistFm.ascent
             val splitY = topY + titleH + lineGap / 2f
 
+            val baseArtistAlpha = if (!isDarkText) 210 else 180
+            artistPaint.alpha = (baseArtistAlpha * artistStaggerAlpha).toInt().coerceIn(0, 255)
+
             drawMarqueeLine(canvas, title, titleWidth, titleScrollX, titleOverflow, titleLoopDist, titleBaseline, titlePaint)
-            drawMarqueeLine(canvas, artist, artistWidth, artistScrollX, artistOverflow, artistLoopDist, artistBaseline, artistPaint)
+            drawMarqueeLine(canvas, artist, artistWidth, artistScrollX - artistStaggerDx, artistOverflow, artistLoopDist, artistBaseline, artistPaint, artistStaggerDx)
 
             if (needFade) {
                 ensureShaders(w)
@@ -329,9 +375,10 @@ internal class LockscreenTrackView(context: Context) : View(context) {
         loopDist: Float,
         baseline: Float,
         paint: TextPaint,
+        staggerDx: Float = 0f,
     ) {
         if (!overflow || loopDist <= 0f) {
-            canvas.drawText(text, paddingLeft.toFloat(), baseline, paint)
+            canvas.drawText(text, paddingLeft.toFloat() + staggerDx, baseline, paint)
             return
         }
         var x = paddingLeft.toFloat() - scrollX

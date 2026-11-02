@@ -13,6 +13,7 @@ import android.graphics.drawable.RippleDrawable
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
+import android.view.animation.PathInterpolator
 import android.graphics.Rect
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
@@ -92,6 +93,11 @@ internal class LockscreenMiniPlayerView(context: Context) : FrameLayout(context)
     private var squeezeScaleY = 1.0f
     private var touchScale = 1.0f
     private var touchScaleAnimator: ValueAnimator? = null
+    private var artworkPlayScale = 1.0f
+    private var artworkPlayScaleAnimator: ValueAnimator? = null
+    private var artworkSkipScale = 1.0f
+    private var artworkSkipScaleAnimator: ValueAnimator? = null
+    private val smoothOutInterpolator = PathInterpolator(0.22f, 1.0f, 0.36f, 1.0f)
 
     init {
         clipToOutline = true
@@ -148,10 +154,57 @@ internal class LockscreenMiniPlayerView(context: Context) : FrameLayout(context)
         scaleY = sy
         val invX = if (sx > 0.001f) 1f / sx else 1f
         val invY = if (sy > 0.001f) 1f / sy else 1f
-        artwork.scaleX = invX
-        artwork.scaleY = invY
+        val artMul = artworkPlayScale * artworkSkipScale
+        artwork.scaleX = invX * artMul
+        artwork.scaleY = invY * artMul
         toggle.scaleX = invX
         toggle.scaleY = invY
+    }
+
+    private fun animateArtworkPlayScale(playing: Boolean, animate: Boolean) {
+        val target = if (playing) 1.0f else 0.88f
+        artworkPlayScaleAnimator?.cancel()
+        if (!animate || abs(artworkPlayScale - target) < 0.001f) {
+            artworkPlayScale = target
+            applyCombinedScale()
+            return
+        }
+        val interp = if (playing) OvershootInterpolator(1.6f) else smoothOutInterpolator
+        val dur = if (playing) 340L else 260L
+        artworkPlayScaleAnimator = ValueAnimator.ofFloat(artworkPlayScale, target).apply {
+            duration = dur
+            interpolator = interp
+            addUpdateListener { va ->
+                artworkPlayScale = va.animatedValue as Float
+                applyCombinedScale()
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    if (artworkPlayScaleAnimator === animation) artworkPlayScaleAnimator = null
+                }
+            })
+            start()
+        }
+    }
+
+    private fun animateArtworkSkipScale(from: Float, to: Float, durationMs: Long, interp: android.animation.TimeInterpolator) {
+        artworkSkipScaleAnimator?.cancel()
+        artworkSkipScale = from
+        applyCombinedScale()
+        artworkSkipScaleAnimator = ValueAnimator.ofFloat(from, to).apply {
+            duration = durationMs
+            interpolator = interp
+            addUpdateListener { va ->
+                artworkSkipScale = va.animatedValue as Float
+                applyCombinedScale()
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    if (artworkSkipScaleAnimator === animation) artworkSkipScaleAnimator = null
+                }
+            })
+            start()
+        }
     }
 
     fun setSqueezeScale(sx: Float, sy: Float) {
@@ -207,7 +260,7 @@ internal class LockscreenMiniPlayerView(context: Context) : FrameLayout(context)
         parent?.requestDisallowInterceptTouchEvent(true)
         dragResetAnimator?.cancel()
         if (!isTouchOnToggle) {
-            animateTouchScale(0.95f, 350L, DecelerateInterpolator())
+            animateTouchScale(0.95f, 120L, DecelerateInterpolator())
             if (onToggleLyrics != null) {
                 startLongPressCheck()
             }
@@ -283,19 +336,93 @@ internal class LockscreenMiniPlayerView(context: Context) : FrameLayout(context)
         }
     }
 
+    private var isSkipTransitionPending = false
+    private var isExitPhaseFinished = false
+    private var hasNewMetadataPending = false
+    private var lastSkipDirection = -1f
+    private var pendingTitle: String? = null
+    private var pendingArtist: String? = null
+    private var pendingArtwork: Bitmap? = null
+    private var pendingPlaying: Boolean? = null
+    private var hasBufferedContent = false
+    private val skipTimeoutRunnable = Runnable {
+        if (isSkipTransitionPending) {
+            flushBufferedContentIfNeeded()
+            startSkipEnterTransition()
+        }
+    }
+
+    private fun clearBufferedContent() {
+        pendingTitle = null
+        pendingArtist = null
+        pendingArtwork = null
+        pendingPlaying = null
+        hasBufferedContent = false
+    }
+
+    private fun flushBufferedContentIfNeeded() {
+        if (!hasBufferedContent) return
+        val title = pendingTitle ?: lastTitle.orEmpty()
+        val artist = pendingArtist ?: lastArtist.orEmpty()
+        val artwork = pendingArtwork
+        val playing = pendingPlaying ?: (lastPlaying == true)
+        clearBufferedContent()
+        applyTrackContent(title, artist, artwork, playing)
+    }
+
+    private fun applyTrackContent(
+        title: String,
+        artist: String,
+        artwork: Bitmap?,
+        playing: Boolean,
+    ) {
+        lastTitle = title
+        lastArtist = artist
+        trackView.bind(title, artist, playing)
+        if (lastArtwork !== artwork) {
+            lastArtwork = artwork
+            if (artwork != null) {
+                this.artwork.setImageBitmap(artwork)
+            } else {
+                this.artwork.setImageDrawable(DefaultArtworkDrawable())
+            }
+        }
+    }
+
     fun startSkipTransition(isNext: Boolean) {
         val direction = if (isNext) -1f else 1f
+        lastSkipDirection = direction
         val exitDx = direction * dp(24f).toFloat()
         val exitRot = direction * 12f
 
+        removeCallbacks(skipTimeoutRunnable)
+        flushBufferedContentIfNeeded()
+        isSkipTransitionPending = true
+        isExitPhaseFinished = false
+        hasNewMetadataPending = false
+        trackView.resetArtistStagger()
+
         contentContainer.animate().cancel()
+        artwork.animate().cancel()
+        trackView.animate().cancel()
+        animateArtworkSkipScale(1.0f, 0.84f, 150L, AccelerateDecelerateInterpolator())
+        artwork.animate()
+            .translationX(direction * dp(4f).toFloat())
+            .setDuration(150L)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .start()
+        trackView.animate()
+            .translationX(direction * dp(8f).toFloat())
+            .setDuration(150L)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .start()
         contentContainer.animate()
             .translationX(exitDx)
             .rotationY(exitRot)
             .alpha(0f)
             .scaleX(0.92f)
             .scaleY(0.92f)
-            .setDuration(160L)
+            .setDuration(150L)
             .setInterpolator(AccelerateDecelerateInterpolator())
             .withEndAction {
                 contentContainer.translationX = -exitDx
@@ -303,17 +430,98 @@ internal class LockscreenMiniPlayerView(context: Context) : FrameLayout(context)
                 contentContainer.alpha = 0f
                 contentContainer.scaleX = 0.92f
                 contentContainer.scaleY = 0.92f
+                artwork.translationX = -direction * dp(6f).toFloat()
+                trackView.translationX = -direction * dp(12f).toFloat()
+                isExitPhaseFinished = true
+                flushBufferedContentIfNeeded()
 
-                contentContainer.animate()
-                    .translationX(0f)
-                    .rotationY(0f)
-                    .alpha(1f)
-                    .scaleX(1f)
-                    .scaleY(1f)
-                    .setDuration(260L)
-                    .setInterpolator(DecelerateInterpolator())
-                    .start()
+                if (hasNewMetadataPending) {
+                    startSkipEnterTransition()
+                }
             }
+            .start()
+
+        postDelayed(skipTimeoutRunnable, 800L)
+    }
+
+    private fun startSkipEnterTransition() {
+        isSkipTransitionPending = false
+        isExitPhaseFinished = false
+        hasNewMetadataPending = false
+        removeCallbacks(skipTimeoutRunnable)
+
+        val enterFromDir = -lastSkipDirection
+        contentContainer.animate().cancel()
+        artwork.animate().cancel()
+        trackView.animate().cancel()
+
+        animateArtworkSkipScale(0.78f, 1.0f, 360L, OvershootInterpolator(1.35f))
+        artwork.animate()
+            .translationX(0f)
+            .setDuration(320L)
+            .setInterpolator(smoothOutInterpolator)
+            .start()
+        trackView.animate()
+            .translationX(0f)
+            .setDuration(340L)
+            .setStartDelay(20L)
+            .setInterpolator(smoothOutInterpolator)
+            .start()
+        trackView.startArtistStagger(
+            fromDx = enterFromDir * dp(14f).toFloat(),
+            durationMs = 340L,
+            startDelayMs = 40L,
+        )
+        contentContainer.animate()
+            .translationX(0f)
+            .rotationY(0f)
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(320L)
+            .setInterpolator(smoothOutInterpolator)
+            .start()
+    }
+
+    private fun startAutoTrackChangeTransition() {
+        if (isSkipTransitionPending) return
+        contentContainer.animate().cancel()
+        artwork.animate().cancel()
+        trackView.animate().cancel()
+
+        contentContainer.translationX = dp(14f).toFloat()
+        contentContainer.rotationY = -6f
+        contentContainer.alpha = 0.15f
+        contentContainer.scaleX = 0.94f
+        contentContainer.scaleY = 0.94f
+        artwork.translationX = dp(4f).toFloat()
+        trackView.translationX = dp(10f).toFloat()
+
+        animateArtworkSkipScale(0.84f, 1.0f, 340L, OvershootInterpolator(1.25f))
+        artwork.animate()
+            .translationX(0f)
+            .setDuration(300L)
+            .setInterpolator(smoothOutInterpolator)
+            .start()
+        trackView.animate()
+            .translationX(0f)
+            .setDuration(320L)
+            .setStartDelay(18L)
+            .setInterpolator(smoothOutInterpolator)
+            .start()
+        trackView.startArtistStagger(
+            fromDx = dp(12f).toFloat(),
+            durationMs = 320L,
+            startDelayMs = 35L,
+        )
+        contentContainer.animate()
+            .translationX(0f)
+            .rotationY(0f)
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(300L)
+            .setInterpolator(smoothOutInterpolator)
             .start()
     }
 
@@ -347,6 +555,7 @@ internal class LockscreenMiniPlayerView(context: Context) : FrameLayout(context)
                 if (absDy > touchSlop && absDy > absDx) {
                     isTouchDown = false
                     isDragging = false
+                    thresholdDirection = 0
                     parent?.requestDisallowInterceptTouchEvent(false)
                     resetDampedDx()
                     animateTouchScale(1.0f, 160L, DecelerateInterpolator())
@@ -411,6 +620,7 @@ internal class LockscreenMiniPlayerView(context: Context) : FrameLayout(context)
                 if (!isDragging) {
                     if (absDy > touchSlop && absDy > absDx) {
                         isTouchDown = false
+                        thresholdDirection = 0
                         parent?.requestDisallowInterceptTouchEvent(false)
                         resetDampedDx()
                         animateTouchScale(1.0f, 160L, DecelerateInterpolator())
@@ -488,9 +698,31 @@ internal class LockscreenMiniPlayerView(context: Context) : FrameLayout(context)
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        removeCallbacks(skipTimeoutRunnable)
+        flushBufferedContentIfNeeded()
+        isSkipTransitionPending = false
+        isExitPhaseFinished = false
+        hasNewMetadataPending = false
+        contentContainer.animate().cancel()
+        contentContainer.translationX = 0f
+        contentContainer.rotationY = 0f
+        contentContainer.alpha = 1f
+        contentContainer.scaleX = 1f
+        contentContainer.scaleY = 1f
+        artwork.animate().cancel()
+        artwork.translationX = 0f
+        trackView.animate().cancel()
+        trackView.translationX = 0f
+        trackView.resetArtistStagger()
+        artworkPlayScaleAnimator?.cancel()
+        artworkPlayScaleAnimator = null
+        artworkSkipScaleAnimator?.cancel()
+        artworkSkipScaleAnimator = null
+        artworkSkipScale = 1.0f
         touchScaleAnimator?.cancel()
         touchScaleAnimator = null
         touchScale = 1.0f
+        applyCombinedScale()
         isTouchDown = false
         isDragging = false
         thresholdDirection = 0
@@ -526,21 +758,31 @@ internal class LockscreenMiniPlayerView(context: Context) : FrameLayout(context)
             applyAppearance(appearance, applyPlatformMaterial)
             updateGeometry(appearance.heightDp)
         }
-        lastTitle = title
-        lastArtist = artist
-        trackView.bind(title, artist, playing)
-        if (lastArtwork !== artwork) {
-            lastArtwork = artwork
-            if (artwork != null) {
-                this.artwork.setImageBitmap(artwork)
-            } else {
-                this.artwork.setImageDrawable(DefaultArtworkDrawable())
+        val hadPreviousTrack = lastTitle != null
+        val trackChanged = lastTitle != title || lastArtist != artist
+        if (isSkipTransitionPending && !isExitPhaseFinished) {
+            pendingTitle = title
+            pendingArtist = artist
+            pendingArtwork = artwork
+            pendingPlaying = playing
+            hasBufferedContent = true
+            if (trackChanged) {
+                hasNewMetadataPending = true
+            }
+        } else {
+            clearBufferedContent()
+            applyTrackContent(title, artist, artwork, playing)
+            if (isSkipTransitionPending && trackChanged) {
+                startSkipEnterTransition()
+            } else if (!isSkipTransitionPending && hadPreviousTrack && trackChanged) {
+                startAutoTrackChangeTransition()
             }
         }
         if (lastPlaying != playing) {
             val animate = lastPlaying != null
             lastPlaying = playing
             playPauseDrawable.setPlaying(playing, animate = animate)
+            animateArtworkPlayScale(playing, animate = animate)
         }
         toggle.setOnClickListener {
             toggle.performHapticFeedbackSafely(HapticFeedbackConstants.KEYBOARD_TAP)
