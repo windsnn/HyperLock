@@ -33,6 +33,8 @@ import kotlin.math.min
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.sin
+import kotlin.math.PI
+import kotlin.math.pow
 import java.lang.ref.WeakReference
 
 /** Native lockscreen card; SystemUI owns media sessions and the final view hierarchy. */
@@ -78,6 +80,8 @@ internal class LockscreenMiniPlayerController(
     private var squeezeBounceOffset = 0f
     private var squeezeScaleX = 1.0f
     private var squeezeScaleY = 1.0f
+    private var squeezePivotXRatio = 0.5f
+    private var squeezeRotation = 0f
     private var isSqueezing = false
     private var squeezeAnimator: Animator? = null
     private var lyricsManualActive = false
@@ -236,7 +240,13 @@ internal class LockscreenMiniPlayerController(
         squeezeBounceOffset = 0f
         squeezeScaleX = 1.0f
         squeezeScaleY = 1.0f
-        player?.setSqueezeScale(1.0f, 1.0f)
+        squeezePivotXRatio = 0.5f
+        squeezeRotation = 0f
+        player?.let { p ->
+            p.setSqueezeScale(1.0f, 1.0f)
+            p.rotation = 0f
+            if (p.width > 0) p.pivotX = p.width / 2f
+        }
         isSqueezing = false
         schedulePosition()
     }
@@ -245,27 +255,43 @@ internal class LockscreenMiniPlayerController(
         val action = {
             if (player != null && host.width > 0) {
                 val isUnlockingOrExiting = host.translationY < -dp(4f) || host.alpha < 0.98f
-                if (!isUnlockingOrExiting) {
-                    cancelCurrentSqueezeAnimator()
+                if (!isUnlockingOrExiting && !isSqueezing && squeezeAnimator == null) {
                     isSqueezing = true
 
-                    val maxOffset = if (fromRight) -dp(10f).toFloat() else dp(10f).toFloat()
-                    val totalDurationMs = 360L
+                    val maxOffset = if (fromRight) -dp(6.2f).toFloat() else dp(6.2f).toFloat()
+                    val maxRotation = if (fromRight) 1.20f else -1.20f
+                    // 支点偏移：右侧撞击时支点偏左(0.12f)，使右边缘凹陷受挤；左侧撞击时支点偏右(0.88f)，使左边缘凹陷受挤
+                    val pivotOffsetMultiplier = if (fromRight) -0.40f else 0.40f
+                    val totalDurationMs = 600L
 
                     val waveAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
                         duration = totalDurationMs
                         interpolator = LinearInterpolator()
                         addUpdateListener { va ->
-                            val fraction = va.animatedValue as Float
-                            val t = fraction * (totalDurationMs / 1000f)
-                            // 黄金阻尼二阶物理弹簧冲击响应解析解: 3.37 * exp(-15.6 * t) * sin(17.45 * t)
-                            val wave = (3.37f * exp(-15.6f * t) * sin(17.45f * t)).toFloat()
+                            val fraction = (va.animatedValue as Float).coerceIn(0f, 1f)
+                            val p = fraction.toDouble()
+                            // 物理冲量传递与接触延迟模型 (Impulse Phase Lag):
+                            // 前 30ms 快捷键飞越间隙尚未触碰，随后进入软接触与冲量吸收，并在 150ms 达到峰值形变
+                            val p0 = 0.04
+                            val wave = if (p < p0) {
+                                0.0f
+                            } else {
+                                val u = (p - p0) / (1.0 - p0)
+                                val easeIn = min(1.0, (u / 0.12).pow(1.4))
+                                val theta = 2.0 * PI * u.pow(0.95)
+                                val decay = (1.0 - u).pow(1.8)
+                                (sin(theta) * decay * easeIn * 1.58).toFloat()
+                            }
 
                             squeezeBounceOffset = maxOffset * wave
-                            val scaleReduction = 0.075f * wave
+                            val scaleReduction = 0.065f * wave
                             squeezeScaleX = 1.0f - scaleReduction
                             // 泊松等容积呼吸: 横向受挤收缩时纵向自然微凸
-                            squeezeScaleY = 1.0f + 0.45f * scaleReduction
+                            squeezeScaleY = 1.0f + 0.40f * scaleReduction
+                            // 非对称受力支点偏移 (Asymmetric Pivot Bias): 受撞击外侧边缘凹陷更深
+                            squeezePivotXRatio = (0.5f + pivotOffsetMultiplier * wave).coerceIn(0.10f, 0.90f)
+                            // 悬浮流体受击微侧倾 (Dynamic Tilt Sway)
+                            squeezeRotation = maxRotation * wave
                             schedulePosition()
                         }
                         addListener(object : AnimatorListenerAdapter() {
@@ -299,7 +325,13 @@ internal class LockscreenMiniPlayerController(
         squeezeBounceOffset = 0f
         squeezeScaleX = 1.0f
         squeezeScaleY = 1.0f
-        player?.setSqueezeScale(1.0f, 1.0f)
+        squeezePivotXRatio = 0.5f
+        squeezeRotation = 0f
+        player?.let { p ->
+            p.setSqueezeScale(1.0f, 1.0f)
+            p.rotation = 0f
+            if (p.width > 0) p.pivotX = p.width / 2f
+        }
         isSqueezing = false
         schedulePosition()
     }
@@ -308,15 +340,14 @@ internal class LockscreenMiniPlayerController(
         val action = {
             val startOffset = squeezeBounceOffset
             val startSx = squeezeScaleX
-            cancelCurrentSqueezeAnimator()
+            val startPivot = squeezePivotXRatio
+            val startRotation = squeezeRotation
+            val running = squeezeAnimator
+            squeezeAnimator = null
+            running?.cancel()
 
-            if (abs(startOffset) < 0.5f && abs(startSx - 1.0f) < 0.01f) {
-                squeezeBounceOffset = 0f
-                squeezeScaleX = 1.0f
-                squeezeScaleY = 1.0f
-                isSqueezing = false
-                player?.setSqueezeScale(1.0f, 1.0f)
-                schedulePosition()
+            if (abs(startOffset) < 0.5f && abs(startSx - 1.0f) < 0.01f && abs(startRotation) < 0.05f) {
+                resetSqueezeState()
             } else {
                 val resetAnim = ValueAnimator.ofFloat(0f, 1f).apply {
                     duration = 160L
@@ -327,30 +358,20 @@ internal class LockscreenMiniPlayerController(
                         val sx = startSx + (1.0f - startSx) * fraction
                         squeezeScaleX = sx
                         squeezeScaleY = 1.0f - 0.40f * (sx - 1.0f)
+                        squeezeRotation = startRotation * (1f - fraction)
+                        squeezePivotXRatio = startPivot + (0.5f - startPivot) * fraction
                         schedulePosition()
                     }
                     addListener(object : AnimatorListenerAdapter() {
                         override fun onAnimationEnd(animation: Animator) {
                             if (squeezeAnimator === animation) {
-                                squeezeAnimator = null
-                                squeezeBounceOffset = 0f
-                                squeezeScaleX = 1.0f
-                                squeezeScaleY = 1.0f
-                                player?.setSqueezeScale(1.0f, 1.0f)
-                                isSqueezing = false
-                                schedulePosition()
+                                resetSqueezeState()
                             }
                         }
 
                         override fun onAnimationCancel(animation: Animator) {
                             if (squeezeAnimator === animation) {
-                                squeezeAnimator = null
-                                squeezeBounceOffset = 0f
-                                squeezeScaleX = 1.0f
-                                squeezeScaleY = 1.0f
-                                player?.setSqueezeScale(1.0f, 1.0f)
-                                isSqueezing = false
-                                schedulePosition()
+                                resetSqueezeState()
                             }
                         }
                     })
@@ -1028,7 +1049,7 @@ internal class LockscreenMiniPlayerController(
             schedulePosition()
             return
         }
-        view.pivotX = actualWidth / 2f
+        view.pivotX = actualWidth * squeezePivotXRatio
         view.pivotY = actualHeight / 2f
         // Preserve the requested center across parent layout passes.
         baseTranslationX = centerX - actualWidth / 2f - view.left
@@ -1036,8 +1057,10 @@ internal class LockscreenMiniPlayerController(
         view.setBaseTranslation(baseTranslationX, baseTranslationY + customizationLift)
         if (isSqueezing) {
             view.setSqueezeScale(squeezeScaleX, squeezeScaleY)
+            view.rotation = squeezeRotation
         } else {
             view.setSqueezeScale(1.0f, 1.0f)
+            view.rotation = 0f
         }
         positionLyrics(view)
     }

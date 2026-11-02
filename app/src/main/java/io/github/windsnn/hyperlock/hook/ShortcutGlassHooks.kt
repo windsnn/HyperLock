@@ -330,6 +330,9 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
     var downTime = 0L
     var isSliding = false
     var lastClickTime = 0L
+    var lastHapticTime = 0L
+    // 与系统原生快捷键点击提示动画（Tips Animation：150+150+100+100+100 = 600ms）严格同频
+    val systemAnimDurationMs = 600L
 
     val getController = {
         synchronized(lockscreenMiniPlayerControllers) {
@@ -383,13 +386,22 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
     }
 
     val onTouchListener = View.OnTouchListener { _, event ->
+        val now = SystemClock.uptimeMillis()
+        val isSystemAnimRunning = now - lastClickTime < systemAnimDurationMs
+
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                // 系统 600ms 提示动画播放期间，直接锁定忽略，绝不打断系统平滑摆动，亦杜绝连击震动
+                if (isSystemAnimRunning) {
+                    return@OnTouchListener false
+                }
+
                 downX = event.rawX
                 downY = event.rawY
                 downTime = event.downTime
                 isSliding = false
 
+                lastHapticTime = now
                 shortcutContainer.performHapticFeedbackSafely(HapticFeedbackConstants.KEYBOARD_TAP)
 
                 if (shortcutContainer.width > 0) shortcutContainer.pivotX = shortcutContainer.width / 2f
@@ -403,6 +415,9 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
                     .start()
             }
             MotionEvent.ACTION_MOVE -> {
+                if (isSystemAnimRunning) {
+                    return@OnTouchListener false
+                }
                 val dx = event.rawX - downX
                 val dy = event.rawY - downY
                 if (Math.hypot(dx.toDouble(), dy.toDouble()) > touchSlop && !isSliding) {
@@ -418,7 +433,9 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
                 }
             }
             MotionEvent.ACTION_UP -> {
-                val now = SystemClock.uptimeMillis()
+                if (isSystemAnimRunning) {
+                    return@OnTouchListener false
+                }
                 val duration = event.eventTime - downTime
                 val dx = event.rawX - downX
                 val dy = event.rawY - downY
@@ -433,15 +450,16 @@ internal fun HyperSystemUiModule.bindShortcutBounceAnimation(shortcutContainer: 
                         .start()
 
                     if (Math.hypot(dx.toDouble(), dy.toDouble()) <= touchSlop && duration < 500L) {
-                        if (now - lastClickTime > 80L) {
-                            lastClickTime = now
-                            getController()?.triggerSqueezeBounce(fromRight = isRight)
-                        }
+                        lastClickTime = now
+                        getController()?.triggerSqueezeBounce(fromRight = isRight)
                     }
                 }
                 isSliding = false
             }
             MotionEvent.ACTION_CANCEL -> {
+                if (isSystemAnimRunning) {
+                    return@OnTouchListener false
+                }
                 isSliding = false
                 shortcutContainer.animate().cancel()
                 shortcutContainer.animate()
