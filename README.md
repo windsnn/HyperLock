@@ -21,15 +21,13 @@
 
 ---
 
-## ✨ Features
+## ✨ Core Features
 
-- 🎵 **Lockscreen Mini Music Player**: Elegantly placed between the bottom shortcut buttons, automatically syncing with the system media session, with Lyricon protocol floating lyrics support.
-- 🖼️ **Bypass Depth Wallpaper Occlusion Limits**: Completely removes the system restriction where depth wallpaper is disabled due to "subject occluding too much of the clock", forcing depth effect even when the clock is heavily covered.
-- 🕒 **Unlock "Glass" Clock Material**: Removes material selection restrictions on lockscreen clocks, allowing "Glass" material on all clock styles and preventing OTA presets from resetting it.
-- 📐 **Notification & Fingerprint Layout**: Eliminates the notification shelf drop position limit, trimming redundant empty space above the fingerprint area; allows hiding the in-display fingerprint icon (lockscreen only or global).
-- 🎨 **Deep Material & Background Customization**: Supports solid color, advanced material, and real-time soft glass effects based on RuntimeShader (Backdrop blur and physical blend color) for shortcut buttons and player; circular frosted-glass background for PIN entry keys.
-- 📝 **Streamlined Bottom Text**: Independently toggle visibility for bottom status text (Charging status / Do Not Disturb / Notification count) for a cleaner lockscreen aesthetic.
-- 🌐 **Full-Featured Internationalization**: Built-in comprehensive Chinese and English localizations with in-app language switching (Follow System / 简体中文 / English), seamlessly integrated with native HyperOS per-app language preferences.
+- 🖼️ **Bypass Depth Wallpaper Limit**: Removes the system restriction where depth effect is disabled when the subject occludes the clock, allowing depth wallpaper to be enabled.
+- 🎵 **Lockscreen Mini Music Player**: Embeds a compact player between the bottom shortcut buttons to replace the stock lockscreen media card, with swipe-to-skip gesture support.
+- 🎤 **Lockscreen Floating Lyrics**: Integrates with the Lyricon protocol to display real-time floating lyrics on the lockscreen with karaoke highlighting and translation support.
+- 🔘 **Shortcut Button Customization**: Allows customizing the background material, size, and spacing of the bottom lockscreen shortcut buttons.
+- 🔢 **PIN Keypad Circular Frosted Glass**: Adds circular frosted-glass backgrounds to lockscreen PIN entry keys for an enhanced aesthetic.
 
 ## 📋 Requirements
 
