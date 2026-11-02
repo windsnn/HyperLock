@@ -34,19 +34,33 @@ if (releaseStoreFile != null && !hasReleaseSigning) {
     logger.warn("HyperLock: 未配置 release 签名，release 构建将使用调试签名。")
 }
 
-// 版本号：CI 发版时把 tag 通过 HYPERLOCK_TAG 传进来（v1.2.3 / v1.2.3-Beta-2 之类，只取数字部分），
-// 因此 Release 包的版本号自动与 tag 一致；没有 tag（手动触发 main、本地构建）时回退到默认值。
-// 也支持用 -PversionTag=vX.Y.Z 手动覆盖。
+// 版本号获取顺序：
+// 1. Gradle 属性 -PversionTag=vX.Y.Z
+// 2. 环境变量 HYPERLOCK_TAG（CI 发版时注入）
+// 3. 本地 Git 动态解析（git describe --tags --always，如 v1.2.0-11-g9453290 或 v1.2.0）
+// 4. 静态兜底默认值
+val gitDescribeTag = runCatching {
+    providers.exec {
+        commandLine("git", "describe", "--tags", "--always")
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim().takeIf { it.isNotEmpty() }
+}.getOrNull()
+
 val releaseTag = providers.gradleProperty("versionTag").orNull?.takeIf { it.isNotBlank() }
     ?: providers.environmentVariable("HYPERLOCK_TAG").orNull?.takeIf { it.isNotBlank() }
+    ?: gitDescribeTag
 
 val tagVersion = releaseTag?.removePrefix("v")
     ?.let { Regex("""^(\d+)\.(\d+)\.(\d+)""").find(it) }
 val versionParts = tagVersion?.let { listOf(it.groupValues[1], it.groupValues[2], it.groupValues[3]) }
-val appVersionName = versionParts?.joinToString(".") ?: "1.1.1"
+val appVersionName = if (versionParts != null) {
+    releaseTag?.removePrefix("v") ?: versionParts.joinToString(".")
+} else {
+    "1.2.0"
+}
 val appVersionCode = versionParts?.let { (major, minor, patch) ->
     major.toInt() * 10000 + minor.toInt() * 100 + patch.toInt()
-} ?: 10101
+} ?: 10200
 
 logger.lifecycle("HyperLock: versionName=$appVersionName, versionCode=$appVersionCode, tag=${releaseTag ?: "无"}")
 
