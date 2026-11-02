@@ -255,7 +255,8 @@ internal class LockscreenMiniPlayerController(
         val action = {
             if (player != null && host.width > 0) {
                 val isUnlockingOrExiting = host.translationY < -dp(4f) || host.alpha < 0.98f
-                if (!isUnlockingOrExiting && !isSqueezing && squeezeAnimator == null) {
+                if (!isUnlockingOrExiting) {
+                    squeezeAnimator?.cancel()
                     isSqueezing = true
 
                     val maxOffset = if (fromRight) -dp(6.2f).toFloat() else dp(6.2f).toFloat()
