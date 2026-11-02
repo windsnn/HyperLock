@@ -28,6 +28,7 @@ internal fun Lock(
     val context = LocalContext.current
     var showRestoreDefaultsDialog by remember { mutableStateOf(false) }
     var showBottomTextDialog by remember { mutableStateOf(false) }
+    var showMiniPlayerGesturesDialog by remember { mutableStateOf(false) }
 
     AppPage(stringResource(R.string.page_lockscreen), onRestoreDefaults = if (activeScopes.isNotEmpty()) { { showRestoreDefaultsDialog = true } } else null) { p, scroll ->
         AppList(p, scroll, 88) {
@@ -114,6 +115,10 @@ internal fun Lock(
                     )
                     ExpandGroup(s.lockscreenMiniPlayerEnabled) {
                         Column {
+                            ArrowPreference(
+                                title = stringResource(R.string.pref_mini_player_gestures),
+                                onClick = { showMiniPlayerGesturesDialog = true },
+                            )
                             OverlayDropdownPreference(
                                 title = stringResource(R.string.pref_mini_player_media_notification),
                                 items = listOf(
@@ -350,6 +355,10 @@ internal fun Lock(
             showRestoreDefaultsDialog = false
             Toast.makeText(context, context.getString(R.string.toast_defaults_restored), Toast.LENGTH_SHORT).show()
         },
+    )
+    MiniPlayerGesturesDialog(
+        show = showMiniPlayerGesturesDialog,
+        onDismiss = { showMiniPlayerGesturesDialog = false },
     )
 }
 

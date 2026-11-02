@@ -97,6 +97,9 @@
     <string name="group_mini_player">Mini Music Player</string>
     <string name="pref_mini_player">Lockscreen mini music player</string>
     <string name="pref_mini_player_summary">Positioned between bottom shortcut buttons, follows current media session</string>
+    <string name="pref_mini_player_gestures">Gesture Guide</string>
+    <string name="dialog_mini_player_gestures_title">Gesture Guide</string>
+    <string name="dialog_mini_player_gestures_content">• Swipe Left: Next track\n• Swipe Right: Previous track\n• Tap Player: Open music app; in Dynamic mode, switch to system media notification\n• Tap Album Art: In Dynamic mode, tap the system media notification\'s album art to switch back to mini player\n• Long Press Player: Show or hide lockscreen lyrics when lyrics mode is set to \"Long press toggle\"</string>
     <string name="pref_mini_player_media_notification">Lockscreen media notification</string>
     <string name="media_notification_mode_keep">Do not hide</string>
     <string name="media_notification_mode_hide">Always hide</string>

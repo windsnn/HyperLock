@@ -95,6 +95,35 @@ internal fun RestoreDefaultsDialog(
 }
 
 @Composable
+internal fun MiniPlayerGesturesDialog(
+    show: Boolean,
+    onDismiss: () -> Unit,
+) {
+    WindowDialog(show = show, onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                text = stringResource(R.string.dialog_mini_player_gestures_title),
+                style = MiuixTheme.textStyles.title3,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = stringResource(R.string.dialog_mini_player_gestures_content),
+                style = MiuixTheme.textStyles.body1,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+            Spacer(Modifier.height(4.dp))
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColorsPrimary(),
+            ) {
+                Text(stringResource(R.string.action_confirm))
+            }
+        }
+    }
+}
+
+@Composable
 internal fun ShortcutBackgroundColorPreference(
     title: String,
     color: Int,

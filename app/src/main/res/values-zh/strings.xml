@@ -97,6 +97,9 @@
     <string name="group_mini_player">迷你音乐播放器</string>
     <string name="pref_mini_player">锁屏迷你音乐播放器</string>
     <string name="pref_mini_player_summary">显示在底部快捷按钮之间，跟随当前媒体会话</string>
+    <string name="pref_mini_player_gestures">手势说明</string>
+    <string name="dialog_mini_player_gestures_title">手势说明</string>
+    <string name="dialog_mini_player_gestures_content">• 左滑播放器：切换下一首\n• 右滑播放器：切换上一首\n• 轻触播放器：非动态模式下打开音乐应用；动态模式下切换为系统媒体通知\n• 轻触通知封面：动态模式下，点击系统媒体通知的专辑封面切回迷你播放器\n• 长按播放器：歌词设为「长按手动开关」时，显示或隐藏锁屏歌词</string>
     <string name="pref_mini_player_media_notification">锁屏媒体通知</string>
     <string name="media_notification_mode_keep">不隐藏</string>
     <string name="media_notification_mode_hide">始终隐藏</string>
