@@ -88,7 +88,10 @@ internal fun HyperSystemUiModule.installLockscreenMediaNotificationHook(
             .intercept { chain ->
                 val row = chain.thisObject as? View
                 val requested = chain.getArg(0) as? Int
-                val result = if (row != null && requested != null && requested != View.GONE &&
+                val isExiting = row != null && synchronized(lockscreenExitingMediaViews) {
+                    row in lockscreenExitingMediaViews
+                }
+                val result = if (row != null && !isExiting && requested != null && requested != View.GONE &&
                     row in lockscreenRows && shouldHideLockscreenMedia(preferences) &&
                     isMediaRow(row, getEntry)
                 ) {
@@ -190,7 +193,41 @@ internal fun HyperSystemUiModule.installLockscreenMediaHeaderHook(
             MIUI_MEDIA_HEADER_VIEW_CLASS,
         )
         LockscreenMediaPresentationBridge.onPresentationChanged = {
-            applyLockscreenMediaPresentation(preferences)
+            applyLockscreenMediaPresentation(preferences, animate = true)
+        }
+        // 拦截 MiuiMediaNotificationControllerImpl.setVisibility(boolean)，从源头避免系统在隐藏状态下
+        // 触发先 generateAddAnimation 再被强行置 GONE 的无效动效抵消。
+        runCatching {
+            val controllerClass = classLoader.loadClass(
+                "com.android.systemui.statusbar.notification.mediacontrol.MiuiMediaNotificationControllerImpl",
+            )
+            val controllerSetVisibility = controllerClass.getMethod(
+                "setVisibility",
+                Boolean::class.javaPrimitiveType,
+            )
+            attachHook(controllerSetVisibility)
+                .setExceptionMode(ExceptionMode.PROTECTIVE)
+                .setId("lockscreen-hide-media-notification:controller-visibility")
+                .intercept { chain ->
+                    val controller = chain.thisObject
+                    val requestedVisible = chain.getArg(0) as? Boolean ?: false
+                    val header = controller?.let { readInstanceField(it, "mediaContainerView") as? View }
+                    if (header != null) {
+                        lockscreenMediaHeaders += header
+                    }
+                    val isExiting = header != null && synchronized(lockscreenExitingMediaViews) {
+                        header in lockscreenExitingMediaViews
+                    }
+                    if (requestedVisible && !isExiting && shouldHideLockscreenMedia(preferences) &&
+                        (lockscreenMediaKeyguardShowing || (header != null && isLockscreenMediaView(header)))
+                    ) {
+                        chain.proceed(arrayOf(false))
+                    } else {
+                        chain.proceed()
+                    }
+                }
+        }.onFailure { error ->
+            hookLog(Log.WARN, TAG, "Could not install MiuiMediaNotificationControllerImpl.setVisibility hook", error)
         }
         // 监听锁屏回调状态以同步 Keyguard 可见性
         runCatching {
@@ -211,13 +248,14 @@ internal fun HyperSystemUiModule.installLockscreenMediaHeaderHook(
                         }
                         if (booleanIndex >= 0) {
                             val showing = chain.getArg(booleanIndex) as? Boolean ?: false
-                            // 每次锁屏状态变化都回到"自定义卡片优先"：动态模式下手选系统通知后，
-                            // 下一次锁屏仍从模块卡片开始。若要保留用户手选，把条件收窄为 showing == true。
-                            if (showing != lockscreenMediaKeyguardShowing && !LockscreenMediaPresentationBridge.showMiniPlayer) {
-                                LockscreenMediaPresentationBridge.setShowMiniPlayer(true)
-                            }
+                            val changed = showing != lockscreenMediaKeyguardShowing
                             lockscreenMediaKeyguardShowing = showing
                             LockscreenKeyguardBridge.setKeyguardState(showing = showing)
+                            // 每次锁屏状态变化都回到"自定义卡片优先"：动态模式下手选系统通知后，
+                            // 下一次锁屏仍从模块卡片开始。若要保留用户手选，把条件收窄为 showing == true。
+                            if (changed && !LockscreenMediaPresentationBridge.showMiniPlayer) {
+                                LockscreenMediaPresentationBridge.setShowMiniPlayer(true)
+                            }
                         }
                         chain.proceed()
                     }
@@ -225,7 +263,7 @@ internal fun HyperSystemUiModule.installLockscreenMediaHeaderHook(
         }.onFailure { error ->
             hookLog(Log.WARN, TAG, "Could not install media keyguard callback hook", error)
         }
-        // 拦截 View.setVisibility 并在调用后校正目标 Header，避免直接修改共有 View 参数引起崩溃
+        // 拦截 View.setVisibility 并在调用前改写参数，避免先置 VISIBLE 再改回 GONE 引发双重布局计算
         val viewVisibility = View::class.java.getMethod(
             "setVisibility",
             Int::class.javaPrimitiveType,
@@ -237,17 +275,21 @@ internal fun HyperSystemUiModule.installLockscreenMediaHeaderHook(
                 // 先做 instanceof 短路：SystemUI 动画与列表刷新期间 View.setVisibility 调用极频繁，
                 // 只有真正的媒体头部才继续读偏好，避免在热路径上做 SharedPreferences 查询。
                 val header = (chain.thisObject as? View)?.takeIf(headerClass::isInstance)
-                val result = chain.proceed()
-                if (header == null) return@intercept result
+                    ?: return@intercept chain.proceed()
                 lockscreenMediaHeaders += header
-                if (shouldHideLockscreenMedia(preferences) &&
-                    (lockscreenMediaKeyguardShowing || isLockscreenMediaView(header)) &&
-                    header.visibility != View.GONE
+                val requested = chain.getArg(0) as? Int
+                val isExiting = synchronized(lockscreenExitingMediaViews) {
+                    header in lockscreenExitingMediaViews
+                }
+                if (!isExiting && requested != null && requested != View.GONE &&
+                    shouldHideLockscreenMedia(preferences) &&
+                    (lockscreenMediaKeyguardShowing || isLockscreenMediaView(header))
                 ) {
                     HyperLog.d(TAG, "Lockscreen media header forced GONE")
-                    header.visibility = View.GONE
+                    chain.proceed(arrayOf(View.GONE))
+                } else {
+                    chain.proceed()
                 }
-                result
             }
 
         // 绑定 ViewHolder 赋值时机，防止首个媒体卡片漏挂封面监听
@@ -421,8 +463,14 @@ internal fun HyperSystemUiModule.shouldFilterLockscreenMedia(preferences: Shared
     preferences.getBoolean(KEY_LOCKSCREEN_MINI_PLAYER_ENABLED, false) &&
         lockscreenMediaNotificationMode(preferences) == LOCKSCREEN_MEDIA_NOTIFICATION_ALWAYS_HIDE
 
-internal fun HyperSystemUiModule.applyLockscreenMediaPresentation(preferences: SharedPreferences) {
+internal fun HyperSystemUiModule.applyLockscreenMediaPresentation(
+    preferences: SharedPreferences,
+    animate: Boolean = false,
+) {
     val hidden = shouldHideLockscreenMedia(preferences)
+    val shouldAnimate = animate &&
+        lockscreenMediaNotificationMode(preferences) == LOCKSCREEN_MEDIA_NOTIFICATION_DYNAMIC &&
+        lockscreenMediaKeyguardShowing
     val headers = synchronized(lockscreenMediaHeaders) { lockscreenMediaHeaders.toList() }
     headers.forEach { header ->
         if (!isMiuiMediaHeaderView(header)) {
@@ -430,28 +478,196 @@ internal fun HyperSystemUiModule.applyLockscreenMediaPresentation(preferences: S
             return@forEach
         }
         if (hidden || lockscreenMediaKeyguardShowing || isLockscreenMediaView(header)) {
-            // 通过目标 View 所在队列派发更新，避免跨线程以及在共享 Header 上施加动画导致残存形变
             header.post {
-                updateLockscreenMediaHeaderVisibility(header, hidden)
+                updateLockscreenMediaHeaderVisibility(header, hidden, shouldAnimate)
             }
         }
     }
     lockscreenMediaRows.toList().forEach { row ->
         if (row in lockscreenRows) {
-            val visibility = if (hidden) View.GONE else View.VISIBLE
-            row.post { row.visibility = visibility }
+            row.post {
+                updateLockscreenMediaRowVisibility(row, hidden, shouldAnimate)
+            }
         }
     }
 }
 
-internal fun HyperSystemUiModule.updateLockscreenMediaHeaderVisibility(header: View, hidden: Boolean) {
+private const val MEDIA_HEADER_ENTER_DURATION_MS = 280L
+private const val MEDIA_HEADER_EXIT_DURATION_MS = 200L
+
+internal fun HyperSystemUiModule.updateLockscreenMediaHeaderVisibility(
+    header: View,
+    hidden: Boolean,
+    animate: Boolean = false,
+) {
     if (!isMiuiMediaHeaderView(header)) return
-    // 取消原生动画并重置状态，防止切换残留形变与透明度异常
+    val holder = readInstanceField(header, "mediaViewHolder")
+    // 针对内部 player (ConstraintLayout) 做属性动画，避免与 PropertiesFrameLayout / NSSL ViewState 冲突
+    val contentView = (holder?.let { readInstanceField(it, "player") as? View }) ?: header
+    val shiftPx = 22f * header.resources.displayMetrics.density
+
+    contentView.animate().cancel()
     header.animate().cancel()
-    header.alpha = 1f
-    header.scaleX = 1f
-    header.scaleY = 1f
-    header.visibility = if (hidden) View.GONE else View.VISIBLE
+
+    if (!animate) {
+        synchronized(lockscreenExitingMediaViews) {
+            lockscreenExitingMediaViews.remove(header)
+        }
+        resetMediaContentViewTransform(contentView)
+        resetMediaContentViewTransform(header)
+        setMiuiMediaHeaderVisibilityWithStackSync(header, hidden)
+        return
+    }
+
+    if (hidden) {
+        if (header.visibility != View.VISIBLE) {
+            synchronized(lockscreenExitingMediaViews) {
+                lockscreenExitingMediaViews.remove(header)
+            }
+            resetMediaContentViewTransform(contentView)
+            setMiuiMediaHeaderVisibilityWithStackSync(header, true)
+            return
+        }
+        synchronized(lockscreenExitingMediaViews) {
+            lockscreenExitingMediaViews.add(header)
+        }
+        contentView.animate()
+            .alpha(0f)
+            .scaleX(0.92f)
+            .scaleY(0.92f)
+            .translationY(shiftPx)
+            .setDuration(MEDIA_HEADER_EXIT_DURATION_MS)
+            .setInterpolator(android.view.animation.DecelerateInterpolator())
+            .withEndAction {
+                synchronized(lockscreenExitingMediaViews) {
+                    lockscreenExitingMediaViews.remove(header)
+                }
+                resetMediaContentViewTransform(contentView)
+                if (LockscreenMediaPresentationBridge.showMiniPlayer) {
+                    setMiuiMediaHeaderVisibilityWithStackSync(header, true)
+                }
+            }
+            .start()
+    } else {
+        synchronized(lockscreenExitingMediaViews) {
+            lockscreenExitingMediaViews.remove(header)
+        }
+        // 先恢复可见性以触发 MiuiMediaNotificationControllerImpl -> NSSL.generateAddAnimation，
+        // 让下方的普通通知卡片同步平滑下移让出空间。
+        setMiuiMediaHeaderVisibilityWithStackSync(header, false)
+        contentView.alpha = 0f
+        contentView.scaleX = 0.92f
+        contentView.scaleY = 0.92f
+        contentView.translationY = shiftPx
+        contentView.animate()
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .translationY(0f)
+            .setDuration(MEDIA_HEADER_ENTER_DURATION_MS)
+            .setInterpolator(android.view.animation.DecelerateInterpolator())
+            .withEndAction {
+                resetMediaContentViewTransform(contentView)
+            }
+            .start()
+    }
+}
+
+private fun resetMediaContentViewTransform(view: View) {
+    view.alpha = 1f
+    view.scaleX = 1f
+    view.scaleY = 1f
+    view.translationY = 0f
+}
+
+/**
+ * 通过 `MiuiMediaNotificationControllerImpl.setVisibility(boolean)` 更新可见性，
+ * 驱动 `visibilityChangedListener` 触发 `NotificationStackScrollLayout` 的添加/移除重排动画。
+ */
+internal fun HyperSystemUiModule.setMiuiMediaHeaderVisibilityWithStackSync(header: View, hidden: Boolean) {
+    val targetVisibility = if (hidden) View.GONE else View.VISIBLE
+    val controller = readInstanceField(header, "mediaNotificationController")
+    if (controller != null) {
+        val invoked = runCatching {
+            controller.javaClass
+                .getMethod("setVisibility", Boolean::class.javaPrimitiveType)
+                .invoke(controller, !hidden)
+            true
+        }.getOrDefault(false)
+        if (invoked && header.visibility == targetVisibility) {
+            scheduleUpdateActiveLockscreenNotifications()
+            return
+        }
+    }
+    header.visibility = targetVisibility
+    scheduleUpdateActiveLockscreenNotifications()
+}
+
+internal fun HyperSystemUiModule.updateLockscreenMediaRowVisibility(
+    row: View,
+    hidden: Boolean,
+    animate: Boolean = false,
+) {
+    val shiftPx = 22f * row.resources.displayMetrics.density
+    row.animate().cancel()
+    if (!animate) {
+        synchronized(lockscreenExitingMediaViews) {
+            lockscreenExitingMediaViews.remove(row)
+        }
+        row.alpha = 1f
+        row.scaleX = 1f
+        row.scaleY = 1f
+        row.visibility = if (hidden) View.GONE else View.VISIBLE
+        return
+    }
+    if (hidden) {
+        if (row.visibility != View.VISIBLE) {
+            synchronized(lockscreenExitingMediaViews) {
+                lockscreenExitingMediaViews.remove(row)
+            }
+            row.visibility = View.GONE
+            return
+        }
+        synchronized(lockscreenExitingMediaViews) {
+            lockscreenExitingMediaViews.add(row)
+        }
+        val baseY = row.translationY
+        row.animate()
+            .alpha(0f)
+            .scaleX(0.92f)
+            .scaleY(0.92f)
+            .translationY(baseY + shiftPx)
+            .setDuration(MEDIA_HEADER_EXIT_DURATION_MS)
+            .setInterpolator(android.view.animation.DecelerateInterpolator())
+            .withEndAction {
+                synchronized(lockscreenExitingMediaViews) {
+                    lockscreenExitingMediaViews.remove(row)
+                }
+                row.alpha = 1f
+                row.scaleX = 1f
+                row.scaleY = 1f
+                row.translationY = baseY
+                if (LockscreenMediaPresentationBridge.showMiniPlayer) {
+                    row.visibility = View.GONE
+                }
+            }
+            .start()
+    } else {
+        synchronized(lockscreenExitingMediaViews) {
+            lockscreenExitingMediaViews.remove(row)
+        }
+        row.visibility = View.VISIBLE
+        row.alpha = 0f
+        row.scaleX = 0.92f
+        row.scaleY = 0.92f
+        row.animate()
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(MEDIA_HEADER_ENTER_DURATION_MS)
+            .setInterpolator(android.view.animation.DecelerateInterpolator())
+            .start()
+    }
 }
 
 internal fun HyperSystemUiModule.installLockscreenMediaArtworkClick(header: View, preferences: SharedPreferences) {

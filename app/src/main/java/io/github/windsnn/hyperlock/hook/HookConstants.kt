@@ -245,6 +245,9 @@ internal fun updateActiveLockscreenNotifications() {
 internal val lockscreenMediaHeaders = Collections.synchronizedSet(
     Collections.newSetFromMap(WeakHashMap<View, Boolean>()),
 )
+internal val lockscreenExitingMediaViews = Collections.synchronizedSet(
+    Collections.newSetFromMap(WeakHashMap<View, Boolean>()),
+)
 internal val lockscreenMiniPlayerControllers = Collections.synchronizedMap(
     WeakHashMap<View, LockscreenMiniPlayerController>(),
 )
