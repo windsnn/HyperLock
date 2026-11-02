@@ -62,7 +62,7 @@ internal data class MaterialParamTitles(
 /**
  * 纯色 / 高级材质 / 柔光玻璃通用参数调节组件。
  *
- * 由快捷功能背景与迷你播放器背景共用。[showPureOpacity] 控制纯色模式下是否显示透明度调节。
+ * 由快捷功能背景与迷你播放器背景共用。[showPureOpacity] 控制纯色模式下是否显示不透明度调节。
  */
 @Composable
 internal fun MaterialParamGroup(
